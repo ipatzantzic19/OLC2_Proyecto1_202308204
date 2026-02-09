@@ -1,0 +1,7 @@
+# Dependencias de Composer
+/Backend/vendor/
+vendor/
+/Backend/composer.lock
+/Backend/composer.json
+/Backend/antlr-4.13.1-complete.jar
+/Backend/generated/

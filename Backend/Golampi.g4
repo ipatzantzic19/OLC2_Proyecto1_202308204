@@ -1,0 +1,239 @@
+grammar Golampi;
+
+// ==================== PROGRAMA ====================
+program
+    : (declaration)* EOF
+    ;
+
+// ==================== DECLARACIONES ====================
+declaration
+    : varDeclaration
+    | constDeclaration
+    | functionDeclaration
+    | statement
+    ;
+
+// Variables
+varDeclaration
+    : VAR idList type                                      # VarDeclSimple
+    | VAR idList type '=' expressionList                   # VarDeclWithInit
+    ;
+
+// Variables cortas (solo dentro de funciones)
+shortVarDeclaration
+    : idList ':=' expressionList
+    ;
+
+// Constantes
+constDeclaration
+    : CONST ID type '=' expression
+    ;
+
+// Funciones
+functionDeclaration
+    : FUNC ID '(' parameterList? ')' type? block           # FuncDeclSingleReturn
+    | FUNC ID '(' parameterList? ')' '(' typeList ')' block # FuncDeclMultiReturn
+    ;
+
+parameterList
+    : parameter (',' parameter)*
+    ;
+
+parameter
+    : ID type                                              # NormalParameter
+    | '*' ID type                                          # PointerParameter
+    ;
+
+typeList
+    : type (',' type)*
+    ;
+
+idList
+    : ID (',' ID)*
+    ;
+
+expressionList
+    : expression (',' expression)*
+    ;
+
+// ==================== SENTENCIAS ====================
+statement
+    : shortVarDeclaration
+    | assignment
+    | ifStatement
+    | switchStatement
+    | forStatement
+    | breakStatement
+    | continueStatement
+    | returnStatement
+    | block
+    | expressionStatement
+    ;
+
+assignment
+    : ID assignOp expression                               # SimpleAssignment
+    | ID '[' expression ']' assignOp expression            # ArrayAssignment
+    ;
+
+assignOp
+    : '=' | '+=' | '-=' | '*=' | '/='
+    ;
+
+ifStatement
+    : IF expression block (ELSE ifStatement)?              # IfElseIf
+    | IF expression block (ELSE block)?                    # IfElse
+    ;
+
+switchStatement
+    : SWITCH expression '{' caseClause* defaultClause? '}'
+    ;
+
+caseClause
+    : CASE expression ':' statement*
+    ;
+
+defaultClause
+    : DEFAULT ':' statement*
+    ;
+
+forStatement
+    : FOR varDeclaration ';' expression ';' expression block  # ForTraditional
+    | FOR expression block                                     # ForWhile
+    | FOR block                                                # ForInfinite
+    ;
+
+breakStatement
+    : BREAK
+    ;
+
+continueStatement
+    : CONTINUE
+    ;
+
+returnStatement
+    : RETURN expressionList?
+    ;
+
+block
+    : '{' (declaration)* '}'
+    ;
+
+expressionStatement
+    : expression
+    ;
+
+// ==================== EXPRESIONES ====================
+expression
+    : logicalOr
+    ;
+
+logicalOr
+    : logicalAnd (OR logicalAnd)*
+    ;
+
+logicalAnd
+    : equality (AND equality)*
+    ;
+
+equality
+    : relational (('==' | '!=') relational)*
+    ;
+
+relational
+    : additive (('>' | '>=' | '<' | '<=') additive)*
+    ;
+
+additive
+    : multiplicative (('+' | '-') multiplicative)*
+    ;
+
+multiplicative
+    : unary (('*' | '/' | '%') unary)*
+    ;
+
+unary
+    : primary                                              # PrimaryUnary
+    | '-' unary                                            # NegativeUnary
+    | '!' unary                                            # NotUnary
+    | '&' ID                                               # AddressOf
+    | '*' unary                                            # Dereference
+    ;
+
+primary
+    : INT32                                                # IntLiteral
+    | FLOAT32                                              # FloatLiteral
+    | RUNE                                                 # RuneLiteral
+    | STRING                                               # StringLiteral
+    | TRUE                                                 # TrueLiteral
+    | FALSE                                                # FalseLiteral
+    | NIL                                                  # NilLiteral
+    | ID                                                   # Identifier
+    | ID '(' argumentList? ')'                             # FunctionCall
+    | ID '[' expression ']'                                # ArrayAccess
+    | '(' expression ')'                                   # GroupedExpression
+    | arrayLiteral                                         # ArrayLiteralExpr
+    ;
+
+arrayLiteral
+    : '[' expression ']' type '{' expressionList? '}'
+    ;
+
+argumentList
+    : argument (',' argument)*
+    ;
+
+argument
+    : expression                                           # ExpressionArgument
+    | '&' ID                                               # AddressArgument
+    ;
+
+// ==================== TIPOS ====================
+type
+    : INT32_TYPE                                           # Int32Type
+    | FLOAT32_TYPE                                         # Float32Type
+    | BOOL_TYPE                                            # BoolType
+    | RUNE_TYPE                                            # RuneType
+    | STRING_TYPE                                          # StringType
+    | '[' expression ']' type                              # ArrayType
+    | '*' type                                             # PointerType
+    ;
+
+// ==================== PALABRAS RESERVADAS ====================
+VAR      : 'var';
+CONST    : 'const';
+FUNC     : 'func';
+IF       : 'if';
+ELSE     : 'else';
+SWITCH   : 'switch';
+CASE     : 'case';
+DEFAULT  : 'default';
+FOR      : 'for';
+BREAK    : 'break';
+CONTINUE : 'continue';
+RETURN   : 'return';
+TRUE     : 'true';
+FALSE    : 'false';
+NIL      : 'nil';
+
+// Tipos
+INT32_TYPE   : 'int32';
+FLOAT32_TYPE : 'float32';
+BOOL_TYPE    : 'bool';
+RUNE_TYPE    : 'rune';
+STRING_TYPE  : 'string';
+
+// Operadores lógicos
+AND : '&&';
+OR  : '||';
+
+// ==================== LITERALES ====================
+INT32   : [0-9]+;
+FLOAT32 : [0-9]+ '.' [0-9]+;
+RUNE    : '\'' (~['\\] | '\\' .) '\'';
+STRING  : '"' (~["\\] | '\\' .)* '"';
+ID      : [a-zA-Z_][a-zA-Z0-9_]*;
+
+// ==================== COMENTARIOS Y ESPACIOS ====================
+LINE_COMMENT  : '//' ~[\r\n]* -> skip;
+BLOCK_COMMENT : '/*' .*? '*/' -> skip;
+WS            : [ \t\r\n]+ -> skip;
