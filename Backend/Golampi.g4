@@ -2,7 +2,7 @@ grammar Golampi;
 
 // ==================== PROGRAMA ====================
 program
-    : (declaration)* EOF
+    : declaration* EOF
     ;
 
 // ==================== DECLARACIONES ====================
@@ -13,25 +13,24 @@ declaration
     | statement
     ;
 
-// Variables
+// ==================== VARIABLES ====================
 varDeclaration
-    : VAR idList type                                      # VarDeclSimple
-    | VAR idList type '=' expressionList                   # VarDeclWithInit
+    : VAR idList type                                     # VarDeclSimple
+    | VAR idList type '=' expressionList                  # VarDeclWithInit
     ;
 
-// Variables cortas (solo dentro de funciones)
 shortVarDeclaration
-    : idList ':=' expressionList
+    : idList ':=' expressionList                          # ShortVarDecl
     ;
 
-// Constantes
+// ==================== CONSTANTES ====================
 constDeclaration
-    : CONST ID type '=' expression
+    : CONST ID type '=' expression                        # ConstDecl
     ;
 
-// Funciones
+// ==================== FUNCIONES ====================
 functionDeclaration
-    : FUNC ID '(' parameterList? ')' type? block           # FuncDeclSingleReturn
+    : FUNC ID '(' parameterList? ')' type? block          # FuncDeclSingleReturn
     | FUNC ID '(' parameterList? ')' '(' typeList ')' block # FuncDeclMultiReturn
     ;
 
@@ -40,8 +39,8 @@ parameterList
     ;
 
 parameter
-    : ID type                                              # NormalParameter
-    | '*' ID type                                          # PointerParameter
+    : ID type                                             # NormalParameter
+    | '*' ID type                                         # PointerParameter
     ;
 
 typeList
@@ -70,18 +69,20 @@ statement
     | expressionStatement
     ;
 
+// ==================== ASIGNACIONES ====================
 assignment
-    : ID assignOp expression                               # SimpleAssignment
-    | ID '[' expression ']' assignOp expression            # ArrayAssignment
+    : ID assignOp expression                              # SimpleAssignment
+    | ID '[' expression ']' assignOp expression           # ArrayAssignment
     ;
 
 assignOp
     : '=' | '+=' | '-=' | '*=' | '/='
     ;
 
+// ==================== CONTROL DE FLUJO ====================
 ifStatement
-    : IF expression block (ELSE ifStatement)?              # IfElseIf
-    | IF expression block (ELSE block)?                    # IfElse
+    : IF expression block (ELSE ifStatement)?             # IfElseIf
+    | IF expression block (ELSE block)?                   # IfElse
     ;
 
 switchStatement
@@ -97,9 +98,9 @@ defaultClause
     ;
 
 forStatement
-    : FOR varDeclaration ';' expression ';' expression block  # ForTraditional
-    | FOR expression block                                     # ForWhile
-    | FOR block                                                # ForInfinite
+    : FOR varDeclaration ';' expression ';' expression block # ForTraditional
+    | FOR expression block                                    # ForWhile
+    | FOR block                                               # ForInfinite
     ;
 
 breakStatement
@@ -114,8 +115,9 @@ returnStatement
     : RETURN expressionList?
     ;
 
+// ==================== BLOQUES ====================
 block
-    : '{' (declaration)* '}'
+    : '{' declaration* '}'
     ;
 
 expressionStatement
@@ -152,26 +154,27 @@ multiplicative
     ;
 
 unary
-    : primary                                              # PrimaryUnary
-    | '-' unary                                            # NegativeUnary
-    | '!' unary                                            # NotUnary
-    | '&' ID                                               # AddressOf
-    | '*' unary                                            # Dereference
+    : primary                                             # PrimaryUnary
+    | '-' unary                                           # NegativeUnary
+    | '!' unary                                           # NotUnary
+    | '&' ID                                              # AddressOf
+    | '*' unary                                           # Dereference
     ;
 
+// ==================== PRIMARIOS ====================
 primary
-    : INT32                                                # IntLiteral
-    | FLOAT32                                              # FloatLiteral
-    | RUNE                                                 # RuneLiteral
-    | STRING                                               # StringLiteral
-    | TRUE                                                 # TrueLiteral
-    | FALSE                                                # FalseLiteral
-    | NIL                                                  # NilLiteral
-    | ID                                                   # Identifier
-    | ID '(' argumentList? ')'                             # FunctionCall
-    | ID '[' expression ']'                                # ArrayAccess
-    | '(' expression ')'                                   # GroupedExpression
-    | arrayLiteral                                         # ArrayLiteralExpr
+    : INT32                                               # IntLiteral
+    | FLOAT32                                             # FloatLiteral
+    | RUNE                                                # RuneLiteral
+    | STRING                                              # StringLiteral
+    | TRUE                                                # TrueLiteral
+    | FALSE                                               # FalseLiteral
+    | NIL                                                 # NilLiteral
+    | ID                                                  # Identifier
+    | ID ('.' ID)? '(' argumentList? ')'                  # FunctionCall
+    | ID '[' expression ']'                               # ArrayAccess
+    | '(' expression ')'                                  # GroupedExpression
+    | arrayLiteral                                        # ArrayLiteralExpr
     ;
 
 arrayLiteral
@@ -183,19 +186,19 @@ argumentList
     ;
 
 argument
-    : expression                                           # ExpressionArgument
-    | '&' ID                                               # AddressArgument
+    : expression                                          # ExpressionArgument
+    | '&' ID                                              # AddressArgument
     ;
 
 // ==================== TIPOS ====================
 type
-    : INT32_TYPE                                           # Int32Type
-    | FLOAT32_TYPE                                         # Float32Type
-    | BOOL_TYPE                                            # BoolType
-    | RUNE_TYPE                                            # RuneType
-    | STRING_TYPE                                          # StringType
-    | '[' expression ']' type                              # ArrayType
-    | '*' type                                             # PointerType
+    : INT32_TYPE                                          # Int32Type
+    | FLOAT32_TYPE                                        # Float32Type
+    | BOOL_TYPE                                           # BoolType
+    | RUNE_TYPE                                           # RuneType
+    | STRING_TYPE                                         # StringType
+    | '[' expression ']' type                             # ArrayType
+    | '*' type                                            # PointerType
     ;
 
 // ==================== PALABRAS RESERVADAS ====================
@@ -215,14 +218,14 @@ TRUE     : 'true';
 FALSE    : 'false';
 NIL      : 'nil';
 
-// Tipos
+// ==================== TIPOS PRIMITIVOS ====================
 INT32_TYPE   : 'int32';
 FLOAT32_TYPE : 'float32';
 BOOL_TYPE    : 'bool';
 RUNE_TYPE    : 'rune';
 STRING_TYPE  : 'string';
 
-// Operadores lógicos
+// ==================== OPERADORES LÓGICOS ====================
 AND : '&&';
 OR  : '||';
 
