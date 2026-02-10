@@ -168,10 +168,12 @@ trait ExpressionVisitor
         }
 
         $left = $this->visit($context->relational(0));
+        $relationalIndex = 1;
 
         for ($i = 1; $i < $context->getChildCount(); $i += 2) {
             $op = $context->getChild($i)->getText();
-            $right = $this->visit($context->relational($i / 2));
+            $right = $this->visit($context->relational($relationalIndex));
+            $relationalIndex++;
             $left = $this->performComparison($op, $left, $right);
         }
 
@@ -188,10 +190,12 @@ trait ExpressionVisitor
         }
 
         $left = $this->visit($context->additive(0));
+        $additiveIndex = 1;
 
         for ($i = 1; $i < $context->getChildCount(); $i += 2) {
             $op = $context->getChild($i)->getText();
-            $right = $this->visit($context->additive($i / 2));
+            $right = $this->visit($context->additive($additiveIndex));
+            $additiveIndex++;
             $left = $this->performComparison($op, $left, $right);
         }
 

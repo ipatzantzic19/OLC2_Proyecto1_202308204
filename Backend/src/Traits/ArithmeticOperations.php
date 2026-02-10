@@ -57,7 +57,9 @@ trait ArithmeticOperations
             return Value::string($left->getValue() . $right->getValue());
         }
 
-        // Operación inválida
+        // Operación inválida - generar error semántico
+        $this->addSemanticError(
+            "Operación no válida: no se puede sumar '$leftType' + '$rightType'",0,0);
         return Value::nil();
     }
 
@@ -103,6 +105,9 @@ trait ArithmeticOperations
             return Value::int32($left->getValue() - $right->getValue());
         }
 
+        // Operación inválida
+        $this->addSemanticError(
+            "Operación no válida: no se puede restar '$leftType' - '$rightType'",0,0);
         return Value::nil();
     }
 
@@ -148,6 +153,9 @@ trait ArithmeticOperations
             return Value::string(str_repeat($left->getValue(), $right->getValue()));
         }
 
+        // Operación inválida
+        $this->addSemanticError(
+            "Operación no válida: no se puede multiplicar '$leftType' * '$rightType'",0,0);
         return Value::nil();
     }
 
@@ -188,6 +196,9 @@ trait ArithmeticOperations
             return Value::float32($left->getValue() / $right->getValue());
         }
 
+        // Operación inválida
+        $this->addSemanticError(
+            "Operación no válida: no se puede dividir '$leftType' / '$rightType'",0,0);
         return Value::nil();
     }
 
@@ -223,6 +234,9 @@ trait ArithmeticOperations
             return Value::int32($left->getValue() % $right->getValue());
         }
 
+        // Operación inválida
+        $this->addSemanticError(
+            "Operación no válida: no se puede calcular módulo '$leftType' % '$rightType'",0,0);
         return Value::nil();
     }
 }
