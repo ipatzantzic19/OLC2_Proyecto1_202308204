@@ -80,9 +80,11 @@ trait ExpressionVisitor
     {
         $left = $this->visit($context->multiplicative(0));
         
+        $multiplicativeIndex = 1;
         for ($i = 1; $i < $context->getChildCount(); $i += 2) {
             $op = $context->getChild($i)->getText();
-            $right = $this->visit($context->multiplicative($i / 2));
+            $right = $this->visit($context->multiplicative($multiplicativeIndex));
+            $multiplicativeIndex++;
             
             if ($op === '+') {
                 $left = $this->performAddition($left, $right);
@@ -101,9 +103,11 @@ trait ExpressionVisitor
     {
         $left = $this->visit($context->unary(0));
         
+        $unaryIndex = 1;
         for ($i = 1; $i < $context->getChildCount(); $i += 2) {
             $op = $context->getChild($i)->getText();
-            $right = $this->visit($context->unary($i / 2));
+            $right = $this->visit($context->unary($unaryIndex));
+            $unaryIndex++;
             
             switch ($op) {
                 case '*':

@@ -25,8 +25,7 @@ class GolampiVisitor extends BaseVisitor
     {
         parent::__construct();
 
-        // Registrar el espacio de nombres `fmt` como una variable especial
-        $this->environment->define('fmt', Value::string('namespace'));
-        $this->addSymbol('fmt', 'namespace', 'global', Value::string('namespace'), 0, 0);
+        // Registrar el espacio de nombres `fmt` en el environment
+        // No agregarlo a la tabla de símbolos aquí para mantener el orden correcto
     }
 }

@@ -13,40 +13,20 @@ require_once __DIR__ . '/../generated/GolampiParser.php';
 
 use Golampi\Visitor\GolampiVisitor;
 use Golampi\Runtime\Value;
+use Golampi\Traits\ErrorHandler;
 use Antlr\Antlr4\Runtime\InputStream;
 use Antlr\Antlr4\Runtime\CommonTokenStream;
 
 /**
  * Clase para manejar errores de ANTLR
  */
-class ErrorListener extends \Antlr\Antlr4\Runtime\Error\BaseErrorListener
+class ErrorListener extends \Antlr\Antlr4\Runtime\Error\Listeners\BaseErrorListener
 {
-    private array $errors = [];
+    use ErrorHandler;
 
-    public function syntaxError(
-        $recognizer,
-        $offendingSymbol,
-        $line,
-        $charPositionInLine,
-        $msg,
-        $e
-    ) {
-        $this->errors[] = [
-            'type' => 'Sintáctico',
-            'description' => $msg,
-            'line' => $line,
-            'column' => $charPositionInLine
-        ];
-    }
-
-    public function getErrors(): array
+    public function syntaxError(\Antlr\Antlr4\Runtime\Recognizer $recognizer, ?object $offendingSymbol, int $line, int $charPositionInLine, string $msg, ?\Antlr\Antlr4\Runtime\Error\Exceptions\RecognitionException $exception): void
     {
-        return $this->errors;
-    }
-
-    public function hasErrors(): bool
-    {
-        return !empty($this->errors);
+        $this->addSyntacticError($msg, $line, $charPositionInLine);
     }
 }
 

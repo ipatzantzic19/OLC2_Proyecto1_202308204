@@ -101,6 +101,19 @@ trait StatementVisitor
 
         // Buscar función
         if ($this->functionExists($funcName)) {
+            // Registrar la función en la tabla de símbolos si es la primera vez que se usa
+            $symbol = $this->findSymbol($funcName);
+            if ($symbol === null) {
+                $this->addSymbol(
+                    $funcName,
+                    'function',
+                    'global',
+                    \Golampi\Runtime\Value::nil(),
+                    $context->getStart()->getLine(),
+                    $context->getStart()->getCharPositionInLine()
+                );
+            }
+
             $func = $this->getFunction($funcName);
             return $func(...$args);
         }
