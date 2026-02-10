@@ -2,7 +2,7 @@
 
 /**
  * Script de prueba del intérprete de Golampi
- * Este archivo prueba las funcionalidades del intérprete incluyendo parsing de archivos .golampi
+ * Analiza archivos .golampi y maneja errores, salidas y reportes
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -13,148 +13,258 @@ require_once __DIR__ . '/../generated/GolampiParser.php';
 
 use Golampi\Visitor\GolampiVisitor;
 use Golampi\Runtime\Value;
-use Golampi\Runtime\Environment;
 use Antlr\Antlr4\Runtime\InputStream;
 use Antlr\Antlr4\Runtime\CommonTokenStream;
 
-try {
+/**
+ * Clase para manejar errores de ANTLR
+ */
+class ErrorListener extends \Antlr\Antlr4\Runtime\Error\BaseErrorListener
+{
+    private array $errors = [];
 
-    echo "=== INTÉRPRETE GOLAMPI - PRUEBAS ===\n\n";
-
-    // ============================================================================
-    // PRUEBA 1: Operaciones aritméticas directas
-    // ============================================================================
-    echo "1. Pruebas de operaciones aritméticas (directas):\n";
-
-    $visitor = new GolampiVisitor();
-
-    $test1 = $visitor->testPerformAddition(Value::int32(10), Value::int32(20));
-    printf("   10 + 20 = %s (tipo: %s)\n", $test1->toString(), $test1->getType());
-
-    $test2 = $visitor->testPerformAddition(Value::int32(10), Value::float32(3.5));
-    printf("   10 + 3.5 = %s (tipo: %s)\n", $test2->toString(), $test2->getType());
-
-    $test3 = $visitor->testPerformAddition(Value::string('Hola '), Value::string('Mundo'));
-    printf("   'Hola ' + 'Mundo' = '%s'\n", $test3->toString());
-
-    echo "\n";
-
-    // ============================================================================
-    // PRUEBA 2: Comparaciones directas
-    // ============================================================================
-    echo "2. Pruebas de comparaciones (directas):\n";
-
-    $comp1 = $visitor->testPerformComparison('==', Value::int32(5), Value::int32(5));
-    printf("   5 == 5 = %s\n", $comp1->toString());
-
-    $comp2 = $visitor->testPerformComparison('!=', Value::int32(5), Value::int32(3));
-    printf("   5 != 3 = %s\n", $comp2->toString());
-
-    $comp3 = $visitor->testPerformComparison('>', Value::int32(10), Value::int32(5));
-    printf("   10 > 5 = %s\n", $comp3->toString());
-
-    echo "\n3. Parsing de archivo test1.golampi:\n";
-
-    // Leer archivo
-    $testFilePath = __DIR__ . '/test1.golampi';
-    if (!file_exists($testFilePath)) {
-        throw new Exception("Archivo no encontrado: $testFilePath");
+    public function syntaxError(
+        $recognizer,
+        $offendingSymbol,
+        $line,
+        $charPositionInLine,
+        $msg,
+        $e
+    ) {
+        $this->errors[] = [
+            'type' => 'Sintáctico',
+            'description' => $msg,
+            'line' => $line,
+            'column' => $charPositionInLine
+        ];
     }
 
-    $sourceCode = file_get_contents($testFilePath);
-    echo "   ✓ Archivo leído: " . strlen($sourceCode) . " caracteres\n";
-    echo "   Contenido:\n";
-    foreach (explode("\n", $sourceCode) as $line) {
-        if (!empty(trim($line))) {
-            echo "      " . trim($line) . "\n";
-        }
+    public function getErrors(): array
+    {
+        return $this->errors;
     }
 
-    echo "\n4. Análisis léxico y sintáctico:\n";
-
-    // Crear input stream desde el contenido del archivo
-    $input = InputStream::fromString($sourceCode);
-    echo "   ✓ InputStream creado\n";
-
-    // Crear lexer
-    $lexer = new \GolampiLexer($input);
-    echo "   ✓ Lexer instanciado\n";
-
-    // Crear token stream
-    $tokens = new CommonTokenStream($lexer);
-    echo "   ✓ CommonTokenStream creado\n";
-
-    // Crear parser
-    $parser = new \GolampiParser($tokens);
-    echo "   ✓ Parser instanciado\n";
-
-    // Obtener el árbol sintáctico
-    $tree = $parser->program();
-    echo "   ✓ Árbol sintáctico generado\n";
-
-    echo "\n5. Ejecución del visitor:\n";
-
-    // Crear e instanciar el visitor
-    $visitor = new GolampiVisitor();
-    echo "   ✓ Visitor instanciado\n";
-
-    // Visitar el árbol
-    $result = $visitor->visit($tree);
-    echo "   ✓ Árbol visitado\n";
-
-    // Obtener resultados
-    $output = $visitor->getOutputString();
-    $errors = $visitor->getErrors();
-
-    echo "\n6. Resultados de la ejecución:\n";
-    if (!empty($output)) {
-        echo "   📤 Salida del programa:\n";
-        foreach (explode("\n", $output) as $line) {
-            if (!empty(trim($line))) {
-                echo "      " . trim($line) . "\n";
-            }
-        }
-    } else {
-        echo "   📤 (Sin salida)\n";
+    public function hasErrors(): bool
+    {
+        return !empty($this->errors);
     }
-
-    echo "\n7. Tabla de Símbolos:\n";
-    $symbolTable = $visitor->getSymbolTable();
-    if (!empty($symbolTable)) {
-        echo "   Total de símbolos: " . count($symbolTable) . "\n";
-        foreach ($symbolTable as $idx => $sym) {
-            $val = $sym['value'] instanceof Value
-                ? $sym['value']->toString()
-                : (string)$sym['value'];
-
-            echo "   [" . ($idx + 1) . "] "
-               . $sym['identifier']
-               . " (" . $sym['type'] . ") = "
-               . $val
-               . " [Scope: " . $sym['scope'] . "]\n";
-        }
-    } else {
-        echo "   (Tabla vacía)\n";
-    }
-
-    echo "\n8. Análisis de Errores:\n";
-    if (!empty($errors)) {
-        echo "   ❌ Errores encontrados: " . count($errors) . "\n";
-        foreach ($errors as $idx => $error) {
-            echo "   [" . ($idx + 1) . "] "
-               . "[" . $error['type'] . "] "
-               . "Línea " . $error['line']
-               . " Col " . $error['column']
-               . ": " . $error['description'] . "\n";
-        }
-    } else {
-        echo "   ✅ Sin errores encontrados\n";
-    }
-
-    echo "\n=== PRUEBA COMPLETADA EXITOSAMENTE ===\n";
-
-} catch (Exception $e) {
-    echo "❌ Error: " . $e->getMessage() . "\n";
-    echo "Stack trace:\n";
-    echo $e->getTraceAsString() . "\n";
 }
+
+/**
+ * Función para formatear la tabla de errores
+ */
+function formatErrorTable(array $errors): string
+{
+    if (empty($errors)) {
+        return "✅ Sin errores\n";
+    }
+
+    $output = "\n" . str_repeat("=", 100) . "\n";
+    $output .= "REPORTE DE ERRORES\n";
+    $output .= str_repeat("=", 100) . "\n";
+    $output .= sprintf("%-5s %-15s %-60s %-8s %-8s\n", "#", "Tipo", "Descripción", "Línea", "Columna");
+    $output .= str_repeat("-", 100) . "\n";
+
+    foreach ($errors as $idx => $error) {
+        $output .= sprintf(
+            "%-5s %-15s %-60s %-8s %-8s\n",
+            $idx + 1,
+            $error['type'],
+            substr($error['description'], 0, 60),
+            $error['line'],
+            $error['column']
+        );
+    }
+
+    $output .= str_repeat("=", 100) . "\n";
+    return $output;
+}
+
+/**
+ * Función para formatear la tabla de símbolos
+ */
+function formatSymbolTable(array $symbols): string
+{
+    if (empty($symbols)) {
+        return "⚠️  Tabla de símbolos vacía\n";
+    }
+
+    $output = "\n" . str_repeat("=", 120) . "\n";
+    $output .= "TABLA DE SÍMBOLOS\n";
+    $output .= str_repeat("=", 120) . "\n";
+    $output .= sprintf("%-20s %-15s %-15s %-30s %-8s %-8s\n", 
+        "Identificador", "Tipo", "Ámbito", "Valor", "Línea", "Columna");
+    $output .= str_repeat("-", 120) . "\n";
+
+    foreach ($symbols as $symbol) {
+        $value = $symbol['value'] instanceof Value
+            ? $symbol['value']->toString()
+            : (string)$symbol['value'];
+
+        $output .= sprintf(
+            "%-20s %-15s %-15s %-30s %-8s %-8s\n",
+            substr($symbol['identifier'], 0, 20),
+            substr($symbol['type'], 0, 15),
+            substr($symbol['scope'], 0, 15),
+            substr($value, 0, 30),
+            $symbol['line'],
+            $symbol['column']
+        );
+    }
+
+    $output .= str_repeat("=", 120) . "\n";
+    return $output;
+}
+
+/**
+ * Función para ejecutar un archivo Golampi
+ */
+function executeGolampiFile(string $filePath): array
+{
+    $result = [
+        'success' => false,
+        'output' => '',
+        'errors' => [],
+        'symbolTable' => [],
+        'executionTime' => 0,
+        'message' => ''
+    ];
+
+    $startTime = microtime(true);
+
+    try {
+        // Verificar que el archivo existe
+        if (!file_exists($filePath)) {
+            throw new Exception("Archivo no encontrado: $filePath");
+        }
+
+        // Leer el código fuente
+        $sourceCode = file_get_contents($filePath);
+        
+        if ($sourceCode === false) {
+            throw new Exception("Error al leer el archivo: $filePath");
+        }
+
+        echo "\n📄 Archivo: " . basename($filePath) . "\n";
+        echo "📊 Tamaño: " . strlen($sourceCode) . " caracteres\n";
+        echo "📝 Líneas: " . substr_count($sourceCode, "\n") + 1 . "\n\n";
+
+        // Crear input stream
+        $input = InputStream::fromString($sourceCode);
+
+        // Crear lexer con error listener
+        $lexer = new \GolampiLexer($input);
+        $lexerErrorListener = new ErrorListener();
+        $lexer->removeErrorListeners();
+        $lexer->addErrorListener($lexerErrorListener);
+
+        // Crear token stream
+        $tokens = new CommonTokenStream($lexer);
+
+        // Crear parser con error listener
+        $parser = new \GolampiParser($tokens);
+        $parserErrorListener = new ErrorListener();
+        $parser->removeErrorListeners();
+        $parser->addErrorListener($parserErrorListener);
+
+        // Obtener el árbol sintáctico
+        $tree = $parser->program();
+
+        // Recolectar errores léxicos y sintácticos
+        $allErrors = array_merge(
+            $lexerErrorListener->getErrors(),
+            $parserErrorListener->getErrors()
+        );
+
+        // Crear e instanciar el visitor
+        $visitor = new GolampiVisitor();
+
+        // Visitar el árbol (ejecutar el programa)
+        $visitor->visit($tree);
+
+        // Obtener errores semánticos
+        $semanticErrors = $visitor->getErrors();
+        $allErrors = array_merge($allErrors, $semanticErrors);
+
+        // Obtener resultados
+        $result['output'] = $visitor->getOutputString();
+        $result['errors'] = $allErrors;
+        $result['symbolTable'] = $visitor->getSymbolTable();
+        $result['success'] = empty($allErrors);
+        $result['executionTime'] = microtime(true) - $startTime;
+
+        if ($result['success']) {
+            $result['message'] = "✅ Ejecución completada exitosamente";
+        } else {
+            $result['message'] = "⚠️  Ejecución completada con errores";
+        }
+
+    } catch (Exception $e) {
+        $result['message'] = "❌ Error: " . $e->getMessage();
+        $result['errors'][] = [
+            'type' => 'Fatal',
+            'description' => $e->getMessage(),
+            'line' => 0,
+            'column' => 0
+        ];
+        $result['executionTime'] = microtime(true) - $startTime;
+    }
+
+    return $result;
+}
+
+// ============================================================================
+// MAIN EXECUTION
+// ============================================================================
+
+echo str_repeat("=", 100) . "\n";
+echo "                    INTÉRPRETE GOLAMPI - SISTEMA DE PRUEBAS\n";
+echo str_repeat("=", 100) . "\n";
+
+// Determinar el archivo a ejecutar
+$testFile = $argv[1] ?? __DIR__ . '/test1.golampi';
+
+if (!file_exists($testFile)) {
+    echo "❌ Error: El archivo '$testFile' no existe\n";
+    echo "\nUso: php test.php [archivo.golampi]\n";
+    exit(1);
+}
+
+// Ejecutar el archivo
+$result = executeGolampiFile($testFile);
+
+// Mostrar resultados
+echo "\n" . str_repeat("=", 100) . "\n";
+echo "RESULTADOS DE LA EJECUCIÓN\n";
+echo str_repeat("=", 100) . "\n";
+echo "Estado: " . $result['message'] . "\n";
+echo "Tiempo de ejecución: " . number_format($result['executionTime'] * 1000, 2) . " ms\n";
+
+// Mostrar salida del programa
+if (!empty($result['output'])) {
+    echo "\n" . str_repeat("-", 100) . "\n";
+    echo "📤 SALIDA DEL PROGRAMA:\n";
+    echo str_repeat("-", 100) . "\n";
+    echo $result['output'] . "\n";
+}
+
+// Mostrar errores
+if (!empty($result['errors'])) {
+    echo formatErrorTable($result['errors']);
+}
+
+// Mostrar tabla de símbolos
+if (!empty($result['symbolTable'])) {
+    echo formatSymbolTable($result['symbolTable']);
+}
+
+// Resumen final
+echo "\n" . str_repeat("=", 100) . "\n";
+echo "RESUMEN\n";
+echo str_repeat("=", 100) . "\n";
+echo "Total de errores: " . count($result['errors']) . "\n";
+echo "Total de símbolos: " . count($result['symbolTable']) . "\n";
+echo "Estado final: " . ($result['success'] ? "✅ EXITOSO" : "❌ CON ERRORES") . "\n";
+echo str_repeat("=", 100) . "\n";
+
+exit($result['success'] ? 0 : 1);

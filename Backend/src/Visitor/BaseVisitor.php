@@ -8,8 +8,8 @@ use Golampi\Traits\ErrorHandler;
 use Golampi\Traits\SymbolTableManager;
 
 /**
- * Esta clase será la base que extiende el visitor generado por ANTLR
- * Aquí implementaremos toda la lógica de interpretación
+ * Clase base que será extendida por el visitor generado por ANTLR
+ * Implementa funcionalidad común y funciones embebidas
  */
 require_once __DIR__ . '/../../generated/GolampiVisitor.php';
 require_once __DIR__ . '/../../generated/GolampiBaseVisitor.php';
@@ -51,8 +51,6 @@ abstract class BaseVisitor extends \GolampiBaseVisitor
 
         // Registrar el espacio de nombres `fmt` como una variable especial
         $this->environment->define('fmt', Value::string('namespace'));
-
-        // Registrar `fmt.Println` en la tabla de símbolos
         $this->addSymbol('fmt.Println', 'function', 'global', Value::nil(), 0, 0);
 
         // len
@@ -61,7 +59,6 @@ abstract class BaseVisitor extends \GolampiBaseVisitor
                 if ($arg->getType() === 'string') {
                     return Value::int32(strlen($arg->getValue()));
                 }
-                // Para arreglos se manejará en otra parte
             }
             return Value::nil();
         };

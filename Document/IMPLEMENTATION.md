@@ -1,266 +1,352 @@
-# Guía de Implementación - Paso a Paso
+# 📘 Guía de Implementación - Continuación
 
-## 🎯 Objetivo
-Implementar un intérprete funcional de Golampi usando ANTLR4, PHP y el patrón Visitor.
+## ✅ Estado Actual
 
-## 📝 Checklist de Implementación
+### Completado
 
-### Fase 1: Configuración ✅
-- [x] Crear gramática Golampi.g4
-- [x] Crear estructura de carpetas
-- [x] Implementar clases base (Value, Environment)
-- [x] Crear traits (ErrorHandler, SymbolTableManager)
-- [x] Configurar composer.json
+#### Estructura Base
+- ✅ Gramática ANTLR completa (Golampi.g4)
+- ✅ Configuración de Composer
+- ✅ Estructura de directorios modular
 
-### Fase 2: Generación del Parser
-- [ ] Descargar ANTLR 4.13.1
-- [ ] Ejecutar generación: `java -jar antlr-4.13.1-complete.jar -Dlanguage=PHP -visitor -no-listener Golampi.g4 -o generated/`
-- [ ] Verificar archivos generados en `generated/`
+#### Runtime
+- ✅ `Value` - Sistema de tipos
+- ✅ `Environment` - Manejo de scopes
 
-### Fase 3: Implementación del Visitor
+#### Traits Implementados
+- ✅ `ErrorHandler` - Manejo de errores
+- ✅ `SymbolTableManager` - Tabla de símbolos
+- ✅ `ArithmeticOperations` - Todas las operaciones aritméticas
+- ✅ `RelationalOperations` - Comparaciones y lógica
+- ✅ `ExpressionVisitor` - Visita de expresiones básicas
+- ✅ `DeclarationVisitor` - Declaración de variables
+- ✅ `StatementVisitor` - Sentencias básicas
 
-#### 3.1 Conectar el Visitor Generado
+#### Visitors
+- ✅ `BaseVisitor` - Clase base con funciones embebidas
+- ✅ `GolampiVisitor` - Visitor principal usando traits
+
+#### Sistema de Pruebas
+- ✅ Script de prueba mejorado con formateo de reportes
+- ✅ Manejo de errores léxicos, sintácticos y semánticos
+- ✅ Generación de reportes formateados
+- ✅ 3 archivos de prueba de ejemplo
+
+### Funcionalidad Probada
+
+✅ Declaración de variables con tipo explícito
+✅ Operaciones aritméticas (suma, resta, multiplicación, división, módulo)
+✅ Operaciones relacionales (==, !=, >, <, >=, <=)
+✅ Operaciones lógicas (&&, ||, !) con cortocircuito
+✅ Función `fmt.Println()`
+✅ Detección de errores semánticos:
+   - Variables no declaradas
+   - Redeclaración de variables
+   - Incompatibilidad de tipos
+
+## 🎯 Siguiente Fase: Control de Flujo
+
+### Crear ControlFlowVisitor.php
+
 ```php
-// src/Visitor/GolampiVisitor.php
-require_once __DIR__ . '/../../generated/GolampiVisitor.php';
+<?php
+namespace Golampi\Traits;
 
-class GolampiVisitor extends \GolampiVisitor {
-    // Tu código aquí
+trait ControlFlowVisitor
+{
+    /**
+     * Visita sentencia if-else
+     */
+    public function visitIfElse($context) {
+        // Implementar
+    }
+
+    /**
+     * Visita sentencia if-else-if
+     */
+    public function visitIfElseIf($context) {
+        // Implementar
+    }
+
+    /**
+     * Visita sentencia for tradicional
+     */
+    public function visitForTraditional($context) {
+        // Implementar con scope local
+    }
+
+    /**
+     * Visita sentencia for-while
+     */
+    public function visitForWhile($context) {
+        // Implementar
+    }
+
+    /**
+     * Visita sentencia for infinito
+     */
+    public function visitForInfinite($context) {
+        // Implementar
+    }
+
+    /**
+     * Visita sentencia switch
+     */
+    public function visitSwitchStatement($context) {
+        // Implementar
+    }
+
+    /**
+     * Visita break
+     */
+    public function visitBreakStatement($context) {
+        // Usar excepciones de control de flujo
+    }
+
+    /**
+     * Visita continue
+     */
+    public function visitContinueStatement($context) {
+        // Usar excepciones de control de flujo
+    }
+
+    /**
+     * Visita return
+     */
+    public function visitReturnStatement($context) {
+        // Usar excepciones de control de flujo
+    }
 }
 ```
 
-#### 3.2 Implementar Métodos Visit (en orden de prioridad)
+### Excepciones de Control de Flujo
 
-##### Nivel 1: Expresiones Básicas
-- [ ] `visitIntLiteral()` - Literales enteros
-- [ ] `visitFloatLiteral()` - Literales flotantes
-- [ ] `visitStringLiteral()` - Literales string
-- [ ] `visitBoolLiteral()` - true/false
-- [ ] `visitNilLiteral()` - nil
-- [ ] `visitRuneLiteral()` - Caracteres
+Crear `src/Runtime/ControlFlowException.php`:
 
-##### Nivel 2: Expresiones Aritméticas
-- [ ] `visitAdditive()` - Suma y resta
-- [ ] `visitMultiplicative()` - Multiplicación, división, módulo
-- [ ] `visitUnary()` - Negación unaria
-- [ ] `visitGroupedExpression()` - Paréntesis
+```php
+<?php
+namespace Golampi\Runtime;
 
-##### Nivel 3: Variables
-- [ ] `visitIdentifier()` - Referencias a variables
-- [ ] `visitVarDeclSimple()` - Declaración de variables
-- [ ] `visitVarDeclWithInit()` - Declaración con inicialización
-- [ ] `visitShortVarDeclaration()` - Declaración corta `:=`
-- [ ] `visitAssignment()` - Asignación a variables
+class BreakException extends \Exception {}
+class ContinueException extends \Exception {}
+class ReturnException extends \Exception {
+    public function __construct(public readonly Value $value) {
+        parent::__construct();
+    }
+}
+```
 
-##### Nivel 4: Expresiones Lógicas y Relacionales
-- [ ] `visitEquality()` - == y !=
-- [ ] `visitRelational()` - >, <, >=, <=
-- [ ] `visitLogicalAnd()` - && (con cortocircuito)
-- [ ] `visitLogicalOr()` - || (con cortocircuito)
+## 📋 Plan de Implementación por Prioridad
 
-##### Nivel 5: Funciones Embebidas
-- [ ] `visitFunctionCall()` - Llamada a funciones
-- [ ] Implementar `fmt.Println()` ✅ (ya está en BaseVisitor)
-- [ ] Implementar `len()` ✅
-- [ ] Implementar `now()` ✅
-- [ ] Implementar `substr()` ✅
-- [ ] Implementar `typeOf()` ✅
+### Fase 1: Control de Flujo (3-5 días)
+- [ ] Crear `ControlFlowVisitor` trait
+- [ ] Crear excepciones de control de flujo
+- [ ] Implementar `if-else`
+- [ ] Implementar `for` (tradicional, while, infinito)
+- [ ] Implementar `switch-case`
+- [ ] Implementar `break`, `continue`, `return`
+- [ ] Crear pruebas para control de flujo
 
-##### Nivel 6: Control de Flujo
-- [ ] `visitIfStatement()` - Condicionales
-- [ ] `visitIfElse()` - If-else
-- [ ] `visitForTraditional()` - For tradicional
-- [ ] `visitForWhile()` - For como while
-- [ ] `visitForInfinite()` - For infinito
-- [ ] `visitBreakStatement()` - Break
-- [ ] `visitContinueStatement()` - Continue
+### Fase 2: Asignaciones (1-2 días)
+- [ ] Crear `AssignmentVisitor` trait
+- [ ] Implementar asignación simple (`x = 10`)
+- [ ] Implementar asignaciones compuestas (`+=`, `-=`, etc.)
+- [ ] Implementar declaración corta (`:=`)
+- [ ] Crear pruebas para asignaciones
 
-##### Nivel 7: Bloques y Scope
-- [ ] `visitBlock()` - Bloques de código
-- [ ] Implementar manejo de scopes
-- [ ] Implementar tabla de símbolos
-
-##### Nivel 8: Funciones Usuario
-- [ ] `visitFunctionDeclaration()` - Declaración de funciones
+### Fase 3: Funciones (3-5 días)
+- [ ] Crear `FunctionVisitor` trait
 - [ ] Implementar hoisting de funciones
-- [ ] `visitReturnStatement()` - Return
-- [ ] Implementar paso de parámetros por valor
+- [ ] Implementar declaración de funciones
+- [ ] Implementar llamadas a funciones
+- [ ] Implementar paso de parámetros
 - [ ] Implementar múltiples retornos
+- [ ] Implementar recursión
+- [ ] Crear pruebas para funciones
 
-##### Nivel 9: Arreglos
-- [ ] `visitArrayLiteral()` - Literales de arreglos
-- [ ] `visitArrayAccess()` - Acceso a elementos
-- [ ] `visitArrayAssignment()` - Asignación a elementos
+### Fase 4: Arreglos (3-5 días)
+- [ ] Crear `ArrayVisitor` trait
+- [ ] Implementar declaración de arreglos
+- [ ] Implementar inicialización de arreglos
+- [ ] Implementar acceso a elementos
+- [ ] Implementar asignación a elementos
 - [ ] Implementar arreglos multidimensionales
+- [ ] Integrar `len()` para arreglos
+- [ ] Crear pruebas para arreglos
 
-##### Nivel 10: Punteros (Avanzado)
-- [ ] `visitAddressOf()` - Operador &
-- [ ] `visitDereference()` - Operador *
+### Fase 5: Punteros (2-3 días)
+- [ ] Crear `PointerVisitor` trait
+- [ ] Implementar operador `&` (dirección)
+- [ ] Implementar operador `*` (desreferencia)
 - [ ] Implementar paso por referencia
+- [ ] Crear pruebas para punteros
 
-### Fase 4: API y Frontend
-- [ ] Crear `public/index.php` - Endpoint API
-- [ ] Implementar manejo de errores en API
-- [ ] Crear respuesta JSON estructurada
-- [ ] Desarrollar interfaz HTML/CSS
-- [ ] Implementar editor de código
-- [ ] Conectar frontend con backend
+### Fase 6: Constantes (1 día)
+- [ ] Implementar declaración de constantes
+- [ ] Validar inmutabilidad
+- [ ] Crear pruebas para constantes
 
-### Fase 5: Reportes
-- [ ] Generar reporte de errores (HTML/CSV)
-- [ ] Generar tabla de símbolos (HTML/CSV)
+### Fase 7: API Backend (2-3 días)
+- [ ] Crear `public/index.php`
+- [ ] Implementar endpoint POST para código
+- [ ] Manejar errores HTTP
+- [ ] Generar respuesta JSON
+- [ ] Crear endpoint para reportes
+
+### Fase 8: Frontend (5-7 días)
+- [ ] Crear estructura HTML
+- [ ] Implementar editor de código (CodeMirror o similar)
+- [ ] Implementar botones de acción
+- [ ] Implementar consola de salida
+- [ ] Conectar con backend
 - [ ] Implementar descarga de reportes
+- [ ] Agregar estilos CSS
 
-### Fase 6: Testing
-- [ ] Crear casos de prueba para expresiones
-- [ ] Crear casos de prueba para variables
-- [ ] Crear casos de prueba para control de flujo
-- [ ] Crear casos de prueba para funciones
-- [ ] Crear casos de prueba para arreglos
+## 🧪 Estrategia de Pruebas
 
-## 🔨 Ejemplo de Implementación
+### Para cada característica:
 
-### Ejemplo: visitIntLiteral
+1. **Crear archivo .golampi de prueba**
+2. **Ejecutar con el sistema de pruebas**
+3. **Verificar salida esperada**
+4. **Verificar tabla de símbolos**
+5. **Verificar detección de errores**
 
-```php
-public function visitIntLiteral($ctx) {
-    $text = $ctx->INT32()->getText();
-    $value = (int)$text;
-    
-    // Agregar a tabla de símbolos si es necesario
-    // Registrar en reportes si es necesario
-    
-    return Value::int32($value);
-}
-```
-
-### Ejemplo: visitAdditive
-
-```php
-public function visitAdditive($ctx) {
-    // Obtener operandos
-    $left = $this->visit($ctx->multiplicative(0));
-    
-    // Visitar cada operación adicional
-    $multiplicativeCount = $ctx->multiplicative()->count();
-    for ($i = 1; $i < $multiplicativeCount; $i++) {
-        $operator = $ctx->getChild($i * 2 - 1)->getText(); // '+' o '-'
-        $right = $this->visit($ctx->multiplicative($i));
-        
-        if ($operator === '+') {
-            $left = $this->performAddition($left, $right);
-        } else {
-            $left = $this->performSubtraction($left, $right);
-        }
-        
-        // Verificar errores de tipo
-        if ($left->isNil()) {
-            $this->addSemanticError(
-                "Operación inválida entre tipos incompatibles",
-                $ctx->start->getLine(),
-                $ctx->start->getCharPositionInLine()
-            );
-        }
-    }
-    
-    return $left;
-}
-```
-
-### Ejemplo: visitVarDeclWithInit
-
-```php
-public function visitVarDeclWithInit($ctx) {
-    $line = $ctx->start->getLine();
-    $column = $ctx->start->getCharPositionInLine();
-    
-    // Obtener lista de identificadores
-    $ids = [];
-    foreach ($ctx->idList()->ID() as $idNode) {
-        $ids[] = $idNode->getText();
-    }
-    
-    // Obtener tipo
-    $type = $this->visit($ctx->type());
-    
-    // Evaluar expresiones
-    $values = [];
-    foreach ($ctx->expressionList()->expression() as $expr) {
-        $values[] = $this->visit($expr);
-    }
-    
-    // Verificar que coincidan las cantidades
-    if (count($ids) !== count($values)) {
-        $this->addSemanticError(
-            "Número de variables no coincide con número de valores",
-            $line, $column
-        );
-        return null;
-    }
-    
-    // Declarar variables
-    for ($i = 0; $i < count($ids); $i++) {
-        $id = $ids[$i];
-        $value = $values[$i];
-        
-        // Verificar que no exista
-        if ($this->environment->exists($id)) {
-            $this->addSemanticError(
-                "Variable '$id' ya fue declarada",
-                $line, $column
-            );
-            continue;
-        }
-        
-        // Verificar tipo
-        if ($value->getType() !== $type) {
-            $this->addSemanticError(
-                "Tipo incompatible: se esperaba $type pero se obtuvo {$value->getType()}",
-                $line, $column
-            );
-        }
-        
-        // Agregar al entorno
-        $this->environment->define($id, $value);
-        
-        // Agregar a tabla de símbolos
-        $this->addSymbol(
-            $id,
-            $type,
-            $this->getCurrentScopeName(),
-            $value->getValue(),
-            $line,
-            $column
-        );
-    }
-    
-    return null;
-}
-```
-
-## 🎓 Tips de Implementación
-
-1. **Empieza simple**: Implementa primero literales y expresiones básicas
-2. **Prueba incremental**: Después de cada método, crea una prueba
-3. **Usa print debugging**: Agrega `var_dump()` para ver qué recibe cada método
-4. **Revisa el árbol**: Usa TestRig de ANTLR para visualizar el árbol sintáctico
-5. **Maneja errores**: Siempre verifica tipos y nulos antes de operar
-
-## 📚 Recursos Útiles
-
-- **Documentación ANTLR PHP**: https://github.com/antlr/antlr4/blob/master/doc/php-target.md
-- **Referencia de Go**: https://go.dev/ref/spec
-- **Tabla de compatibilidad de tipos**: Ver documento del proyecto
-
-## 🚀 Comandos Rápidos
+### Ejemplo de flujo de prueba:
 
 ```bash
-# Generar parser
+# 1. Crear test4.golampi con if-else
+# 2. Ejecutar
+php test/test.php test/test4.golampi
+
+# 3. Verificar salida
+# 4. Verificar errores (si aplica)
+# 5. Iterar hasta funcionar correctamente
+```
+
+## 💡 Tips de Implementación
+
+### 1. Manejo de Scopes en Control de Flujo
+
+```php
+public function visitForTraditional($context) {
+    // Crear nuevo scope para el for
+    $this->enterScope('for_' . $context->getStart()->getLine());
+    
+    try {
+        // Visitar declaración de variable del for
+        // Visitar condición
+        // Visitar bloque
+        
+    } catch (BreakException $e) {
+        // Salir del bucle
+    } catch (ContinueException $e) {
+        // Continuar siguiente iteración
+    } finally {
+        $this->exitScope();
+    }
+}
+```
+
+### 2. Evaluación de Condiciones
+
+```php
+private function evaluateCondition($context): bool {
+    $value = $this->visit($context);
+    
+    if (!$value instanceof Value) {
+        $this->addSemanticError(
+            "La condición debe ser una expresión válida",
+            $context->getStart()->getLine(),
+            $context->getStart()->getCharPositionInLine()
+        );
+        return false;
+    }
+    
+    return $value->toBool();
+}
+```
+
+### 3. Funciones con Hoisting
+
+```php
+// En visitProgram, primero recolectar todas las funciones
+private function collectFunctions($context) {
+    for ($i = 0; $i < $context->getChildCount(); $i++) {
+        $child = $context->getChild($i);
+        if ($child instanceof FunctionDeclarationContext) {
+            $name = $child->ID()->getText();
+            $this->functions[$name] = $child;
+        }
+    }
+}
+```
+
+## 🎨 Ejemplo de Prueba Completa
+
+```golampi
+// test4.golampi - Control de flujo
+func main() {
+    var x int32 = 10
+    var y int32 = 20
+    
+    // If-else
+    if x < y {
+        fmt.Println("x es menor que y")
+    } else {
+        fmt.Println("x es mayor o igual que y")
+    }
+    
+    // For tradicional
+    for i := 0; i < 5; i += 1 {
+        fmt.Println("Iteración:", i)
+    }
+    
+    // For como while
+    var contador int32 = 0
+    for contador < 3 {
+        fmt.Println("Contador:", contador)
+        contador = contador + 1
+    }
+}
+```
+
+## 📊 Checklist de Validación
+
+Antes de considerar completada cada fase, verificar:
+
+- [ ] Código limpio y documentado
+- [ ] Sin errores de PHP
+- [ ] Traits correctamente implementados
+- [ ] Pruebas exitosas
+- [ ] Tabla de símbolos correcta
+- [ ] Detección de errores funcionando
+- [ ] Compatibilidad con especificación del proyecto
+
+## 🚀 Comandos Útiles
+
+```bash
+# Regenerar parser después de cambios en gramática
 java -jar antlr-4.13.1-complete.jar -Dlanguage=PHP -visitor -no-listener Golampi.g4 -o generated/
 
-# Ejecutar prueba
-php examples/test.php
+# Regenerar autoload después de agregar traits
+composer dump-autoload -o
 
-# Ver árbol sintáctico (necesita compilar a Java primero)
-java org.antlr.v4.gui.TestRig Golampi program -gui < examples/test1.golampi
+# Ejecutar prueba específica
+php test/test.php test/test4.golampi
+
+# Verificar sintaxis PHP
+php -l src/Traits/NuevoTrait.php
 ```
+
+## 📖 Recursos de Consulta
+
+- **Especificación del Proyecto**: EnunciadoProyecto1.pdf
+- **Gramática**: Golampi.g4
+- **Tablas de Compatibilidad**: Sección 3.3.6 del proyecto
+- **Control de Flujo**: Sección 3.3.9 del proyecto
+- **Funciones**: Sección 3.3.12 del proyecto
+
+---
+
+**Siguiente acción recomendada**: Empezar con la Fase 1 (Control de Flujo) creando el trait `ControlFlowVisitor` y las excepciones de control de flujo.

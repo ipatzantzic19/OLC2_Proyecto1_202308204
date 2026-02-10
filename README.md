@@ -1,160 +1,256 @@
-# Golampi Interpreter - Backend
+# 🚀 Intérprete Golampi - Versión Refactorizada
 
-Intérprete del lenguaje Golampi desarrollado con ANTLR4 y PHP usando el patrón Visitor.
+## 📋 Descripción
 
-## 📋 Requisitos
+Intérprete del lenguaje Golampi implementado con:
+- **ANTLR 4.13.1** para análisis léxico y sintáctico
+- **PHP 8.0+** como lenguaje de implementación
+- **Patrón Visitor** con **Traits** para organización modular
 
-- PHP >= 8.0
-- Java Runtime Environment (para ANTLR)
-- Composer
-- ANTLR 4.13.1
+## 🏗️ Arquitectura Refactorizada
 
-## 🚀 Configuración Inicial
+### Estructura de Directorios
 
-### 1. Descargar ANTLR
-
-```bash
-cd ~/Downloads
-wget https://www.antlr.org/download/antlr-4.13.1-complete.jar
-# O descárgalo manualmente desde: https://www.antlr.org/download.html
+```
+golampi-refactored/
+├── Golampi.g4                          # Gramática ANTLR
+├── composer.json                       # Configuración de Composer
+├── README.md                           # Este archivo
+│
+├── src/
+│   ├── Traits/                         # Traits modulares
+│   │   ├── ArithmeticOperations.php    # Operaciones aritméticas
+│   │   ├── RelationalOperations.php    # Operaciones relacionales
+│   │   ├── ExpressionVisitor.php       # Visita de expresiones
+│   │   ├── DeclarationVisitor.php      # Visita de declaraciones
+│   │   ├── StatementVisitor.php        # Visita de sentencias
+│   │   ├── ErrorHandler.php            # Manejo de errores
+│   │   └── SymbolTableManager.php      # Tabla de símbolos
+│   │
+│   ├── Runtime/                        # Sistema de runtime
+│   │   ├── Value.php                   # Valores tipados
+│   │   └── Environment.php             # Entorno de variables
+│   │
+│   └── Visitor/                        # Visitor pattern
+│       ├── BaseVisitor.php             # Clase base con funciones embebidas
+│       └── GolampiVisitor.php          # Visitor principal (usa todos los traits)
+│
+├── test/                               # Archivos de prueba
+│   ├── test.php                        # Script de prueba mejorado
+│   ├── test1.golampi                   # Prueba básica
+│   ├── test2.golampi                   # Prueba con errores
+│   └── test3.golampi                   # Prueba de operaciones
+│
+├── generated/                          # Archivos generados por ANTLR (crear)
+└── public/                             # Frontend (crear después)
 ```
 
-### 2. Mover ANTLR al directorio del proyecto
+### Ventajas de la Refactorización
 
-```bash
-cp ~/Downloads/antlr-4.13.1-complete.jar /ruta/al/proyecto/
-```
+✅ **Modularidad**: Cada trait maneja una responsabilidad específica
+✅ **Mantenibilidad**: Archivos más pequeños y enfocados
+✅ **Reutilización**: Los traits pueden usarse en otras clases
+✅ **Legibilidad**: Código más organizado y fácil de entender
+✅ **Escalabilidad**: Fácil agregar nuevas funcionalidades
 
-### 3. Generar el Parser desde la gramática
+## 🔧 Instalación
 
-```bash
-java -jar antlr-4.13.1-complete.jar -Dlanguage=PHP -visitor -no-listener Golampi.g4 -o generated/
-```
-
-Este comando generará:
-- `GolampiLexer.php` - Analizador léxico
-- `GolampiParser.php` - Analizador sintáctico
-- `GolampiVisitor.php` - Interfaz del visitor (base)
-- Otras clases de contexto
-
-### 4. Instalar dependencias de PHP
+### 1. Instalar Dependencias PHP
 
 ```bash
 composer install
 ```
 
-## 📁 Estructura del Proyecto
-
-```
-golampi-interpreter/
-├── Golampi.g4                    # Gramática ANTLR4
-├── composer.json                 # Configuración de Composer
-├── antlr-4.13.1-complete.jar    # JAR de ANTLR (descargar)
-├── generated/                    # Código generado por ANTLR (auto)
-│   ├── GolampiLexer.php
-│   ├── GolampiParser.php
-│   └── GolampiVisitor.php (interfaz)
-├── src/
-│   ├── Traits/
-│   │   ├── ErrorHandler.php         # Trait para manejo de errores
-│   │   └── SymbolTableManager.php   # Trait para tabla de símbolos
-│   ├── Runtime/
-│   │   ├── Value.php                # Clase para valores en runtime
-│   │   └── Environment.php          # Entorno de variables
-│   └── Visitor/
-│       ├── BaseVisitor.php          # Visitor base con traits
-│       └── GolampiVisitor.php       # Implementación del visitor
-└── public/
-    └── index.php                     # Punto de entrada API
-```
-
-## 🔧 Uso
-
-### Generar parser cuando modificas la gramática
+### 2. Descargar ANTLR 4.13.1
 
 ```bash
-composer generate-parser
-# O manualmente:
-java -jar antlr-4.13.1-complete.jar -Dlanguage=PHP -visitor -no-listener Golampi.g4 -o generated/
+wget https://www.antlr.org/download/antlr-4.13.1-complete.jar
 ```
 
-### Implementar el Visitor
+### 3. Generar el Parser
 
-El archivo `src/Visitor/GolampiVisitor.php` debe extender el `GolampiVisitor` generado por ANTLR.
-
-Después de generar el parser, deberás:
-
-1. Hacer que `GolampiVisitor` extienda la clase generada:
-
-```php
-// En src/Visitor/GolampiVisitor.php
-namespace Golampi\Visitor;
-
-use Golampi\Runtime\Value;
-
-// Importar el visitor generado
-require_once __DIR__ . '/../../generated/GolampiVisitor.php';
-
-class GolampiVisitor extends \GolampiVisitor // Clase generada
-{
-    use \Golampi\Traits\ErrorHandler;
-    use \Golampi\Traits\SymbolTableManager;
-    
-    // Implementar métodos visit*
-    
-    public function visitProgram($ctx) {
-        // Tu implementación
-    }
-    
-    public function visitIntLiteral($ctx) {
-        return Value::int32((int)$ctx->INT32()->getText());
-    }
-    
-    // ... más métodos
-}
+```bash
+java -jar antlr-4.13.1-complete.jar \
+     -Dlanguage=PHP \
+     -visitor \
+     -no-listener \
+     Golampi.g4 \
+     -o generated/
 ```
 
-## 📊 Características Implementadas
+### 4. Generar el Autoload
 
-### ✅ Base del Sistema
+```bash
+composer dump-autoload -o
+```
 
-- [x] Gramática ANTLR4 completa de Golampi
-- [x] Sistema de tipos con Value
-- [x] Entorno de variables (Environment)
-- [x] Trait para manejo de errores
-- [x] Trait para tabla de símbolos
-- [x] Funciones embebidas (fmt.Println, len, now, substr, typeOf)
+## 🧪 Ejecutar Pruebas
 
-### 🔨 Operaciones Implementadas
+### Ejecutar archivo específico
 
-- [x] Operadores aritméticos con tabla de compatibilidad
-- [x] Operadores relacionales
-- [x] Operadores lógicos con cortocircuito
-- [x] Manejo de nil
+```bash
+php test/test.php test/test1.golampi
+```
 
-### 📝 Pendiente de Implementar
+### Ejecutar prueba por defecto
 
-- [ ] Métodos visit* para cada regla de la gramática
-- [ ] Declaración de variables y constantes
-- [ ] Estructuras de control (if, switch, for)
-- [ ] Funciones y llamadas
-- [ ] Arreglos
-- [ ] Punteros y referencias
-- [ ] Generación de reportes
+```bash
+php test/test.php
+```
 
-## 🎯 Próximos Pasos
+## 📊 Salida del Sistema de Pruebas
 
-1. **Generar el parser**: Ejecuta ANTLR sobre `Golampi.g4`
-2. **Conectar el visitor**: Modifica `GolampiVisitor.php` para extender la clase generada
-3. **Implementar visit methods**: Implementa un método `visit*` por cada regla de la gramática
-4. **Crear API endpoint**: Desarrolla `public/index.php` para recibir código fuente
-5. **Probar con casos simples**: Empieza con expresiones aritméticas simples
+El sistema de pruebas muestra:
 
-## 📚 Referencias
+1. **Información del archivo**
+   - Nombre, tamaño y número de líneas
 
-- [ANTLR4 Documentation](https://github.com/antlr/antlr4/blob/master/doc/index.md)
-- [ANTLR4 PHP Target](https://github.com/antlr/antlr4/blob/master/doc/php-target.md)
-- [Gramática de Go](https://go.dev/ref/spec)
+2. **Salida del programa**
+   - Resultado de `fmt.Println()` y otras salidas
+
+3. **Reporte de errores**
+   - Tabla formateada con errores léxicos, sintácticos y semánticos
+   - Línea y columna de cada error
+
+4. **Tabla de símbolos**
+   - Identificadores declarados
+   - Tipos, ámbitos y valores
+   - Ubicación en el código
+
+5. **Resumen**
+   - Total de errores
+   - Total de símbolos
+   - Estado final de la ejecución
+   - Tiempo de ejecución
+
+## 📝 Ejemplo de Salida
+
+```
+====================================================================================================
+                    INTÉRPRETE GOLAMPI - SISTEMA DE PRUEBAS
+====================================================================================================
+
+📄 Archivo: test1.golampi
+📊 Tamaño: 142 caracteres
+📝 Líneas: 7
+
+====================================================================================================
+RESULTADOS DE LA EJECUCIÓN
+====================================================================================================
+Estado: ✅ Ejecución completada exitosamente
+Tiempo de ejecución: 12.45 ms
+
+----------------------------------------------------------------------------------------------------
+📤 SALIDA DEL PROGRAMA:
+----------------------------------------------------------------------------------------------------
+La suma es: 30
+
+========================================================================================================================
+TABLA DE SÍMBOLOS
+========================================================================================================================
+Identificador        Tipo            Ámbito          Valor                          Línea    Columna 
+------------------------------------------------------------------------------------------------------------------------
+fmt                  namespace       global          namespace                      0        0       
+fmt.Println          function        global          nil                            0        0       
+x                    int32           global          10                             3        4       
+y                    int32           global          20                             4        4       
+result               int32           global          30                             5        4       
+========================================================================================================================
+
+====================================================================================================
+RESUMEN
+====================================================================================================
+Total de errores: 0
+Total de símbolos: 5
+Estado final: ✅ EXITOSO
+====================================================================================================
+```
+
+## 🎯 Traits Implementados
+
+### ArithmeticOperations
+- `performAddition()` - Suma con tabla de compatibilidad
+- `performSubtraction()` - Resta
+- `performMultiplication()` - Multiplicación (incluye repetición de strings)
+- `performDivision()` - División con manejo de división por cero
+- `performModulo()` - Módulo
+
+### RelationalOperations
+- `performComparison()` - Comparaciones relacionales
+- `compareEquality()` - Igualdad/Desigualdad
+- `compareRelational()` - Mayor/Menor
+- `performLogicalAnd()` - AND con cortocircuito
+- `performLogicalOr()` - OR con cortocircuito
+
+### ExpressionVisitor
+- `visitIntLiteral()`, `visitFloatLiteral()`, `visitStringLiteral()`
+- `visitTrueLiteral()`, `visitFalseLiteral()`, `visitNilLiteral()`
+- `visitAdditive()`, `visitMultiplicative()`
+- `visitEquality()`, `visitRelational()`
+- `visitLogicalAnd()`, `visitLogicalOr()`
+- `visitGroupedExpression()`
+
+### DeclarationVisitor
+- `visitVarDeclSimple()` - Declaración sin inicialización
+- `visitVarDeclWithInit()` - Declaración con inicialización
+- `visitIdentifier()` - Referencias a variables
+- `extractType()` - Extracción de tipos
+- `getDefaultValue()` - Valores por defecto
+
+### StatementVisitor
+- `visitProgram()` - Programa principal
+- `visitDeclaration()` - Declaraciones
+- `visitBlock()` - Bloques de código
+- `visitFuncDeclSingleReturn()` - Funciones
+- `visitFunctionCall()` - Llamadas a función
+- `visitExpressionStatement()` - Sentencias de expresión
+
+### ErrorHandler
+- `addError()`, `addLexicalError()`, `addSyntacticError()`, `addSemanticError()`
+- `getErrors()`, `hasErrors()`, `clearErrors()`
+
+### SymbolTableManager
+- `enterScope()`, `exitScope()`
+- `addSymbol()`, `symbolExistsInCurrentScope()`, `findSymbol()`
+- `getCurrentScopeName()`, `getSymbolTable()`, `clearSymbolTable()`
+
+## ✨ Funciones Embebidas
+
+- `fmt.Println(...args)` - Imprime en consola
+- `len(string|array)` - Longitud
+- `now()` - Fecha y hora actual (YYYY-MM-DD HH:MM:SS)
+- `substr(string, start, length)` - Subcadena
+- `typeOf(value)` - Tipo de una variable
+
+## 🔜 Próximos Pasos
+
+### Implementar traits adicionales:
+1. **ControlFlowVisitor** - if, switch, for, break, continue
+2. **FunctionVisitor** - Declaración y llamada de funciones usuario
+3. **ArrayVisitor** - Arreglos y acceso a elementos
+4. **PointerVisitor** - Punteros y referencias
+
+### Crear el Frontend:
+1. Editor de código
+2. Botones de acción
+3. Consola de salida
+4. Descarga de reportes
+
+## 📚 Recursos
+
+- **ANTLR4 Documentation**: https://github.com/antlr/antlr4
+- **ANTLR PHP Target**: https://github.com/antlr/antlr4/blob/master/doc/php-target.md
+- **Go Language Specification**: https://go.dev/ref/spec
+
+## 🎓 Créditos
+
+**Universidad San Carlos de Guatemala**  
+**Curso**: Organización de Lenguajes y Compiladores 2  
+**Proyecto**: Intérprete Golampi
+
+---
+
+**Nota**: Este es el código base refactorizado. Continúa la implementación siguiendo la guía en IMPLEMENTATION.md
 
 ## 🐛 Debug
 
