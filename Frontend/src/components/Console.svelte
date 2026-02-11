@@ -1,104 +1,111 @@
 <script>
-  import { consoleOutput, errors } from '../lib/store.js';
-
-  let consoleContainer;
-
-  $: if (consoleContainer) {
-    consoleContainer.scrollTop = consoleContainer.scrollHeight;
+  import { consoleOutput } from '../lib/store.js';
+  
+  let consoleElement;
+  
+  $: if (consoleElement) {
+    consoleElement.scrollTop = consoleElement.scrollHeight;
+  }
+  
+  function getTypeIcon(type) {
+    switch(type) {
+      case 'system': return '>';
+      case 'success': return '✓';
+      case 'error': return '✗';
+      case 'debug': return '[debug]';
+      case 'info': return '→';
+      default: return '>';
+    }
+  }
+  
+  function getTypeClass(type) {
+    return type || 'output';
   }
 </script>
 
-<div class="console" bind:this={consoleContainer}>
+<div class="console-container" bind:this={consoleElement}>
   {#each $consoleOutput as item, index (index)}
-    <div class="console-line" class:error={item.type === 'error'} class:success={item.type === 'success'}>
-      <span class="timestamp">[{item.timestamp}]</span>
-      <span class="icon">
-        {#if item.type === 'error'}
-          ❌
-        {:else if item.type === 'success'}
-          ✅
-        {:else}
-          ➤
-        {/if}
-      </span>
-      <span class="message">{item.message}</span>
+    <div class="console-line {getTypeClass(item.type)}">
+      <span class="console-prefix">{getTypeIcon(item.type)}</span>
+      <span class="console-message">{item.message}</span>
     </div>
   {/each}
-
+  
   {#if $consoleOutput.length === 0}
-    <div class="placeholder">
-      <p>Presiona el botón "Ejecutar" para ver los resultados aquí...</p>
+    <div class="console-empty">
+      <p>Console output will appear here...</p>
     </div>
   {/if}
 </div>
 
 <style>
-  .console {
-    flex: 1;
+  .console-container {
+    height: 100%;
     overflow-y: auto;
     padding: 12px;
-    font-family: 'Courier New', monospace;
+    background: #1E1E1E;
+    font-family: 'Consolas', 'Courier New', monospace;
     font-size: 13px;
     line-height: 1.6;
-    background: #1e1e1e;
   }
-
-  .console::-webkit-scrollbar {
-    width: 8px;
+  
+  .console-container::-webkit-scrollbar {
+    width: 10px;
   }
-
-  .console::-webkit-scrollbar-track {
+  
+  .console-container::-webkit-scrollbar-track {
     background: #252526;
   }
-
-  .console::-webkit-scrollbar-thumb {
+  
+  .console-container::-webkit-scrollbar-thumb {
     background: #464647;
-    border-radius: 4px;
+    border-radius: 5px;
   }
-
-  .console::-webkit-scrollbar-thumb:hover {
-    background: #5a5a5a;
-  }
-
+  
   .console-line {
     display: flex;
     gap: 8px;
-    margin-bottom: 4px;
-    color: #d4d4d4;
-    word-break: break-word;
+    margin-bottom: 2px;
+    color: #D4D4D4;
   }
-
-  .console-line.error {
-    color: #f48771;
-  }
-
-  .console-line.success {
-    color: #6a9955;
-  }
-
-  .timestamp {
+  
+  .console-prefix {
     color: #858585;
     flex-shrink: 0;
+    min-width: 20px;
   }
-
-  .icon {
-    flex-shrink: 0;
-  }
-
-  .message {
+  
+  .console-message {
     flex: 1;
+    word-break: break-word;
   }
-
-  .placeholder {
+  
+  .console-line.system {
+    color: #4A9EFF;
+  }
+  
+  .console-line.success {
+    color: #6A9955;
+  }
+  
+  .console-line.error {
+    color: #F48771;
+  }
+  
+  .console-line.debug {
+    color: #858585;
+    font-style: italic;
+  }
+  
+  .console-line.info {
+    color: #CE9178;
+  }
+  
+  .console-empty {
     display: flex;
     align-items: center;
     justify-content: center;
     height: 100%;
-    color: #666;
-    text-align: center;
-  }
-
-  .placeholder p {
-    margin: 0;
+    color: #858585;
   }
 </style>

@@ -3,122 +3,159 @@
 namespace Golampi\Api;
 
 use Golampi\Visitor\GolampiVisitor;
+use Golampi\Runtime\Value;
 use Antlr\Antlr4\Runtime\InputStream;
-use Antlr\Antlr4\Runtime\CommonTokenFactory;
 use Antlr\Antlr4\Runtime\CommonTokenStream;
-use GolampiLexer;
-use GolampiParser;
+use Antlr\Antlr4\Runtime\Error\Listeners\BaseErrorListener;
+
+require_once __DIR__ . '/../../generated/GolampiLexer.php';
+require_once __DIR__ . '/../../generated/GolampiParser.php';
 
 /**
- * Handler para ejecutar código Golampi
+ * Error Listener personalizado
+ */
+class CustomErrorListener extends BaseErrorListener
+{
+    private array $errors = [];
+
+    public function syntaxError(
+        \Antlr\Antlr4\Runtime\Recognizer $recognizer,
+        ?object $offendingSymbol,
+        int $line,
+        int $charPositionInLine,
+        string $msg,
+        ?\Antlr\Antlr4\Runtime\Error\Exceptions\RecognitionException $exception
+    ): void {
+        $this->errors[] = [
+            'type' => 'Sintáctico',
+            'description' => $msg,
+            'line' => $line,
+            'column' => $charPositionInLine
+        ];
+    }
+
+    public function getErrors(): array
+    {
+        return $this->errors;
+    }
+}
+
+/**
+ * Handler de ejecución de código Golampi
  */
 class ExecutionHandler
 {
-    private GolampiVisitor $visitor;
-
-    public function __construct()
-    {
-        $this->visitor = new GolampiVisitor();
-    }
-
-    /**
-     * Ejecuta código Golampi
-     * @param string $code Código a ejecutar
-     * @return array Resultado de la ejecución
-     */
     public function execute(string $code): array
     {
+        $startTime = microtime(true);
+        
         try {
-            // Crear stream de entrada
+            // Parse del código
             $input = InputStream::fromString($code);
-
-            // Crear lexer
-            $lexer = new GolampiLexer($input);
+            
+            // Lexer
+            $lexer = new \GolampiLexer($input);
+            $lexerErrors = new CustomErrorListener();
             $lexer->removeErrorListeners();
-            $lexer->addErrorListener(new \Antlr\Antlr4\Runtime\Error\ErrorListener\DiagnosticErrorListener());
-
-            // Crear token stream
-            $tokenStream = new CommonTokenStream($lexer);
-
-            // Crear parser
-            $parser = new GolampiParser($tokenStream);
+            $lexer->addErrorListener($lexerErrors);
+            
+            // Parser
+            $tokens = new CommonTokenStream($lexer);
+            $parser = new \GolampiParser($tokens);
+            $parserErrors = new CustomErrorListener();
             $parser->removeErrorListeners();
-            $parser->addErrorListener(new \Antlr\Antlr4\Runtime\Error\ErrorListener\DiagnosticErrorListener());
-
-            // Obtener árbol de análisis
+            $parser->addErrorListener($parserErrors);
+            
+            // AST
             $tree = $parser->program();
-
-            // Ejecutar el programa
-            $this->visitor->visit($tree);
-
-            // Recopilar resultados
-            $output = $this->visitor->getOutput();
-            $errors = $this->visitor->getErrors();
-            $symbolTable = $this->visitor->getSymbols();
-
+            
+            // Errores sintácticos
+            $allErrors = array_merge(
+                $lexerErrors->getErrors(),
+                $parserErrors->getErrors()
+            );
+            
+            // Visitor
+            $visitor = new GolampiVisitor();
+            
+            try {
+                $visitor->visit($tree);
+            } catch (\Exception $e) {
+                $allErrors[] = [
+                    'type' => 'Runtime',
+                    'description' => $e->getMessage(),
+                    'line' => 0,
+                    'column' => 0
+                ];
+            }
+            
+            // Errores semánticos
+            $allErrors = array_merge($allErrors, $visitor->getErrors());
+            
+            // Formatear resultados
+            $output = $visitor->getOutput();
+            $symbols = $this->formatSymbols($visitor->getSymbolTable());
+            $errors = $this->formatErrors($allErrors);
+            
+            $executionTime = round((microtime(true) - $startTime) * 1000, 2);
+            
             return [
                 'success' => count($errors) === 0,
                 'output' => $output,
                 'errors' => $errors,
-                'symbolTable' => $symbolTable,
-                'timestamp' => date('Y-m-d H:i:s'),
+                'symbolTable' => $symbols,
+                'executionTime' => $executionTime . 'ms',
+                'timestamp' => date('Y-m-d H:i:s')
             ];
+            
         } catch (\Exception $e) {
             return [
                 'success' => false,
                 'output' => [],
-                'errors' => [
-                    [
-                        'type' => 'RUNTIME_ERROR',
-                        'message' => $e->getMessage(),
-                        'line' => 0,
-                        'column' => 0,
-                    ]
-                ],
+                'errors' => [[
+                    'type' => 'Fatal',
+                    'description' => $e->getMessage(),
+                    'line' => 0,
+                    'column' => 0
+                ]],
                 'symbolTable' => [],
-                'timestamp' => date('Y-m-d H:i:s'),
+                'executionTime' => '0ms',
+                'timestamp' => date('Y-m-d H:i:s')
             ];
         }
     }
-
-    /**
-     * Valida la sintaxis del código
-     * @param string $code Código a validar
-     * @return array Resultado de validación
-     */
-    public function validate(string $code): array
+    
+    private function formatErrors(array $errors): array
     {
-        try {
-            $input = InputStream::fromString($code);
-            $lexer = new GolampiLexer($input);
-            $lexer->removeErrorListeners();
-
-            $tokenStream = new CommonTokenStream($lexer);
-            $parser = new GolampiParser($tokenStream);
-            $parser->removeErrorListeners();
-
-            $tree = $parser->program();
-
-            $errors = $this->visitor->getErrors();
-
+        return array_map(function($error, $index) {
             return [
-                'success' => count($errors) === 0,
-                'errors' => $errors,
-                'message' => count($errors) === 0 ? 'Sintaxis válida' : 'Errores encontrados',
+                'id' => $index + 1,
+                'type' => $error['type'] ?? 'Unknown',
+                'description' => $error['description'] ?? '',
+                'line' => $error['line'] ?? 0,
+                'column' => $error['column'] ?? 0
             ];
-        } catch (\Exception $e) {
+        }, $errors, array_keys($errors));
+    }
+    
+    private function formatSymbols(array $symbols): array
+    {
+        return array_map(function($symbol) {
+            $value = $symbol['value'];
+            if ($value instanceof Value) {
+                $valueStr = $value->toString();
+            } else {
+                $valueStr = $value === null ? 'nil' : (string)$value;
+            }
+            
             return [
-                'success' => false,
-                'errors' => [
-                    [
-                        'type' => 'SYNTAX_ERROR',
-                        'message' => $e->getMessage(),
-                        'line' => 0,
-                        'column' => 0,
-                    ]
-                ],
-                'message' => 'Error de sintaxis',
+                'identifier' => $symbol['identifier'] ?? '',
+                'type' => $symbol['type'] ?? '',
+                'scope' => $symbol['scope'] ?? 'global',
+                'value' => $valueStr,
+                'line' => $symbol['line'] ?? 0,
+                'column' => $symbol['column'] ?? 0
             ];
-        }
+        }, $symbols);
     }
 }

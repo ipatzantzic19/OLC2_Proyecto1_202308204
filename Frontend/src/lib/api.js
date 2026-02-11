@@ -1,147 +1,105 @@
+import { consoleOutput, symbolTable, errors } from './store.js';
+
+// Use Vite env var if provided; default to proxy path `/api` to avoid CORS in dev
+const API_URL = import.meta.env.VITE_API_URL || '/api';
+
 /**
- * API Client para conectar con el Backend
+ * Cliente API para Golampi IDE
  */
 
-const API_BASE_URL = 'http://localhost:8000/api';
-
-class GolampiAPI {
-  /**
-   * Ejecuta código Golampi
-   * @param {string} code - Código a ejecutar
-   * @returns {Promise<Object>} Resultado de la ejecución
-   */
-  static async executeCode(code) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/execute`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ code }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-        output: [],
-        errors: [
-          {
-            type: 'RUNTIME_ERROR',
-            message: error.message,
-            line: 0,
-            column: 0,
-          },
-        ],
-      };
+/**
+ * Ejecuta código Golampi
+ */
+export async function executeCode(code) {
+  try {
+    const response = await fetch(`${API_URL}/execute`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ code }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
-  }
-
-  /**
-   * Valida la sintaxis del código
-   * @param {string} code - Código a validar
-   * @returns {Promise<Object>} Resultado de validación
-   */
-  static async validateCode(code) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/validate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ code }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
-  }
-
-  /**
-   * Obtiene la tabla de símbolos de una ejecución
-   * @param {string} code - Código ejecutado
-   * @returns {Promise<Object>} Tabla de símbolos
-   */
-  static async getSymbolTable(code) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/symbol-table`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ code }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-        symbols: [],
-      };
-    }
-  }
-
-  /**
-   * Obtiene ejemplos de código
-   * @returns {Promise<Object>} Lista de ejemplos
-   */
-  static async getExamples() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/examples`);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-        examples: [],
-      };
-    }
-  }
-
-  /**
-   * Obtiene información del lenguaje
-   * @returns {Promise<Object>} Información del lenguaje
-   */
-  static async getLanguageInfo() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/language-info`);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-        info: {},
-      };
-    }
+    
+    const result = await response.json();
+    return result;
+    
+  } catch (error) {
+    console.error('API Error:', error);
+    return {
+      success: false,
+      error: error.message,
+      output: [],
+      errors: [{
+        type: 'Connection',
+        description: `Failed to connect to backend: ${error.message}`,
+        line: 0,
+        column: 0
+      }],
+      symbolTable: [],
+      executionTime: '0ms'
+    };
   }
 }
 
-export default GolampiAPI;
+/**
+ * Obtiene solo errores
+ */
+export async function getErrors(code) {
+  try {
+    const response = await fetch(`${API_URL}/errors`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ code }),
+    });
+    
+    const result = await response.json();
+    return result;
+    
+  } catch (error) {
+    return {
+      success: false,
+      errors: [],
+      errorCount: 0
+    };
+  }
+}
+
+/**
+ * Obtiene solo tabla de símbolos
+ */
+export async function getSymbols(code) {
+  try {
+    const response = await fetch(`${API_URL}/symbols`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ code }),
+    });
+    
+    const result = await response.json();
+    return result;
+    
+  } catch (error) {
+    return {
+      success: false,
+      symbolTable: [],
+      symbolCount: 0
+    };
+  }
+}
+
+/**
+ * Limpia todos los datos
+ */
+export function clearAll() {
+  consoleOutput.set([]);
+  symbolTable.set([]);
+  errors.set([]);
+}

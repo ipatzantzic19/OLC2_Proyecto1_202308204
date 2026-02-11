@@ -1,91 +1,87 @@
 #!/bin/bash
 
-# Script para iniciar el proyecto
+# Golampi IDE Quick Start Script
+# Este script inicia el backend y frontend simultáneamente
 
-echo "🚀 Iniciando Golampi Development Environment"
+echo "🚀 Starting Golampi IDE..."
 echo ""
 
-# Obtener la ruta del script
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-# Colores
-RED='\033[0;31m'
+# Colors
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Función para imprimir mensajes
-print_header() {
-    echo -e "${BLUE}════════════════════════════════════════${NC}"
-    echo -e "${BLUE}$1${NC}"
-    echo -e "${BLUE}════════════════════════════════════════${NC}"
-}
-
-# Verificar si se ejecuta desde el directorio raíz
-if [ ! -f "Frontend/package.json" ] || [ ! -f "Backend/composer.json" ]; then
-    echo -e "${RED}❌ Este script debe ejecutarse desde la raíz del proyecto${NC}"
+# Check if we're in the right directory
+if [ ! -d "Backend" ] || [ ! -d "Frontend" ]; then
+    echo -e "${RED}❌ Error: Must run from project root${NC}"
+    echo "Current directory: $(pwd)"
     exit 1
 fi
 
-# Iniciar Backend
-print_header "Iniciando Backend (Puerto 8000)"
+# Start Backend (use api.php as router so /api/* routes work)
+echo -e "${BLUE}Starting Backend on port 8000...${NC}"
 cd Backend
-php -S 0.0.0.0:8000 > /tmp/backend.log 2>&1 &
+# Use api.php as router to ensure all /api requests are handled by the router
+php -S localhost:8000 api.php -t . > /tmp/golampi-backend.log 2>&1 &
 BACKEND_PID=$!
-echo -e "${GREEN}✅ Backend iniciado (PID: $BACKEND_PID)${NC}"
-echo ""
+echo -e "${GREEN}✓ Backend started (PID: $BACKEND_PID)${NC}"
+cd ..
 
-# Esperar a que el backend se inicie
+# Wait for backend
 sleep 2
 
-# Verificar que el backend está corriendo
+# Check backend
 if ! kill -0 $BACKEND_PID 2>/dev/null; then
-    echo -e "${RED}❌ Error al iniciar el backend${NC}"
-    cat /tmp/backend.log
+    echo -e "${RED}❌ Backend failed to start${NC}"
+    cat /tmp/golampi-backend.log
     exit 1
 fi
 
-# Iniciar Frontend
-print_header "Iniciando Frontend (Puerto 5173)"
-cd "$SCRIPT_DIR/Frontend"
+# Start Frontend
+echo -e "${BLUE}Starting Frontend on port 5173...${NC}"
+cd Frontend
 
-# Instalar dependencias si es necesario
+# Check if node_modules exists
 if [ ! -d "node_modules" ]; then
-    echo "📦 Instalando dependencias del frontend..."
-    npm install > /tmp/npm-install.log 2>&1
+    echo -e "${BLUE}Installing Frontend dependencies...${NC}"
+    npm install > /tmp/golampi-npm.log 2>&1
     if [ $? -ne 0 ]; then
-        echo -e "${RED}❌ Error al instalar dependencias${NC}"
-        cat /tmp/npm-install.log
+        echo -e "${RED}❌ npm install failed${NC}"
+        cat /tmp/golampi-npm.log
         kill $BACKEND_PID
         exit 1
     fi
 fi
 
-npm run dev > /tmp/frontend.log 2>&1 &
+npm run dev > /tmp/golampi-frontend.log 2>&1 &
 FRONTEND_PID=$!
-echo -e "${GREEN}✅ Frontend iniciado (PID: $FRONTEND_PID)${NC}"
-echo ""
+echo -e "${GREEN}✓ Frontend started (PID: $FRONTEND_PID)${NC}"
+cd ..
 
-# Esperar a que el frontend se inicie
+# Wait for frontend
 sleep 3
 
-# Verificar que el frontend está corriendo
+# Check frontend
 if ! kill -0 $FRONTEND_PID 2>/dev/null; then
-    echo -e "${RED}❌ Error al iniciar el frontend${NC}"
-    cat /tmp/frontend.log
+    echo -e "${RED}❌ Frontend failed to start${NC}"
+    cat /tmp/golampi-frontend.log
     kill $BACKEND_PID
     exit 1
 fi
 
-# Mostrar información
-print_header "Información de Acceso"
-echo -e "${YELLOW}Frontend:${NC} http://localhost:5173"
-echo -e "${YELLOW}Backend API:${NC} http://localhost:8000/api"
+# Success message
 echo ""
-echo -e "${YELLOW}Para detener, presiona Ctrl+C${NC}"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}    Golampi IDE is now running!    ${NC}"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+echo -e "${BLUE}Frontend:${NC} http://localhost:5173"
+echo -e "${BLUE}Backend API:${NC} http://localhost:8000/api"
+echo ""
+echo -e "${RED}Press Ctrl+C to stop${NC}"
 echo ""
 
-# Mantener el script activo
-trap "kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit" SIGINT
+# Keep script running and handle Ctrl+C
+trap "kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; echo ''; echo 'Stopped.'; exit" SIGINT
 wait
