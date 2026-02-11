@@ -30,6 +30,10 @@ class ApiRouter
         
         // Endpoint de símbolos
         $this->routes['POST']['/api/symbols'] = [$this, 'handleSymbols'];
+
+        // Endpoints para obtener la última ejecución (errores/símbolos) sin re-ejecutar
+        $this->routes['GET']['/api/last-errors'] = [$this, 'handleLastErrors'];
+        $this->routes['GET']['/api/last-symbols'] = [$this, 'handleLastSymbols'];
     }
 
     public function handle(string $method, string $path, array $body = []): void
@@ -119,6 +123,50 @@ class ApiRouter
             'success' => $result['success'],
             'symbolTable' => $result['symbolTable'],
             'symbolCount' => count($result['symbolTable'])
+        ];
+    }
+
+    /**
+     * GET /api/last-errors
+     * Devuelve la lista de errores de la última ejecución
+     */
+    private function handleLastErrors(array $body = []): array
+    {
+        $tmp = sys_get_temp_dir();
+        $path = $tmp . '/golampi_last_errors.json';
+        $errors = [];
+        if (file_exists($path)) {
+            $content = file_get_contents($path);
+            $decoded = json_decode($content, true);
+            if (is_array($decoded)) $errors = $decoded;
+        }
+
+        return [
+            'success' => true,
+            'errors' => $errors,
+            'errorCount' => count($errors)
+        ];
+    }
+
+    /**
+     * GET /api/last-symbols
+     * Devuelve la tabla de símbolos de la última ejecución
+     */
+    private function handleLastSymbols(array $body = []): array
+    {
+        $tmp = sys_get_temp_dir();
+        $path = $tmp . '/golampi_last_symbols.json';
+        $symbols = [];
+        if (file_exists($path)) {
+            $content = file_get_contents($path);
+            $decoded = json_decode($content, true);
+            if (is_array($decoded)) $symbols = $decoded;
+        }
+
+        return [
+            'success' => true,
+            'symbolTable' => $symbols,
+            'symbolCount' => count($symbols)
         ];
     }
 }

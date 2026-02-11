@@ -45,6 +45,19 @@ class CustomErrorListener extends BaseErrorListener
  */
 class ExecutionHandler
 {
+    private array $lastErrors = [];
+    private array $lastSymbols = [];
+
+    public function getLastErrors(): array
+    {
+        return $this->lastErrors;
+    }
+
+    public function getLastSymbols(): array
+    {
+        return $this->lastSymbols;
+    }
+
     public function execute(string $code): array
     {
         $startTime = microtime(true);
@@ -96,6 +109,15 @@ class ExecutionHandler
             $output = $visitor->getOutput();
             $symbols = $this->formatSymbols($visitor->getSymbolTable());
             $errors = $this->formatErrors($allErrors);
+
+            // Save last results for later retrieval
+            $this->lastErrors = $errors;
+            $this->lastSymbols = $symbols;
+
+            // Persist last results to temp files so they survive across requests
+            $tmp = sys_get_temp_dir();
+            @file_put_contents($tmp . '/golampi_last_errors.json', json_encode($errors, JSON_UNESCAPED_UNICODE));
+            @file_put_contents($tmp . '/golampi_last_symbols.json', json_encode($symbols, JSON_UNESCAPED_UNICODE));
             
             $executionTime = round((microtime(true) - $startTime) * 1000, 2);
             

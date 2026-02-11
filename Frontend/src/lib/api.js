@@ -96,6 +96,40 @@ export async function getSymbols(code) {
 }
 
 /**
+ * Recupera errores de la última ejecución (sin re-ejecutar)
+ */
+export async function fetchLastErrors() {
+  try {
+    const response = await fetch(`/api/last-errors`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('fetchLastErrors Error:', error);
+    return { success: false, errors: [], errorCount: 0 };
+  }
+}
+
+/**
+ * Recupera la tabla de símbolos de la última ejecución
+ */
+export async function fetchLastSymbols() {
+  try {
+    const response = await fetch(`/api/last-symbols`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('fetchLastSymbols Error:', error);
+    return { success: false, symbolTable: [], symbolCount: 0 };
+  }
+}
+
+/**
  * Limpia todos los datos
  */
 export function clearAll() {

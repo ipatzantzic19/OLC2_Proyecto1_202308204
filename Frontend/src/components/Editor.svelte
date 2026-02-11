@@ -4,7 +4,7 @@
   import Console from './Console.svelte';
   import SymbolTable from './SymbolTable.svelte';
   import ErrorsPanel from './ErrorsPanel.svelte';
-  import { executeCode, clearAll } from '../lib/api.js';
+  import { executeCode, clearAll, fetchLastErrors, fetchLastSymbols } from '../lib/api.js';
   
   let activeTab = 'console';
   let fileName = 'main.golampi';
@@ -63,6 +63,30 @@
     errors.set(result.errors || []);
     
     isExecuting.set(false);
+  }
+
+  async function showLastErrors() {
+    const res = await fetchLastErrors();
+    if (res && res.success) {
+      errors.set(res.errors || []);
+      // Show the errors panel
+      activeTab = 'errors';
+    } else {
+      // set empty errors and show panel
+      errors.set([]);
+      activeTab = 'errors';
+    }
+  }
+
+  async function showLastSymbols() {
+    const res = await fetchLastSymbols();
+    if (res && res.success) {
+      symbolTable.set(res.symbolTable || []);
+      activeTab = 'symbols';
+    } else {
+      symbolTable.set([]);
+      activeTab = 'symbols';
+    }
   }
   
   function clear() {
@@ -239,7 +263,7 @@
         AST
       </button>
       
-      <button class="bottom-btn error" on:click={() => activeTab = 'errors'}>
+      <button class="bottom-btn error" on:click={showLastErrors}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <circle cx="8" cy="8" r="6" stroke="currentColor" fill="none"/>
           <path d="M8 4v5M8 11v1"/>
@@ -247,7 +271,7 @@
         Errors Table
       </button>
       
-      <button class="bottom-btn success" on:click={() => activeTab = 'symbols'}>
+      <button class="bottom-btn success" on:click={showLastSymbols}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <path d="M2 3h12v10H2V3zm1 1v8h10V4H3z"/>
           <path d="M5 6h6M5 8h6M5 10h4"/>
