@@ -46,7 +46,8 @@
       // Mostrar errores detallados si vienen del backend
       if (result.errors && result.errors.length > 0) {
         result.errors.forEach(err => {
-          const msg = `${err.type}: ${err.description}` + (err.line ? ` (line ${err.line})` : '');
+          const pos = (err.line || err.column) ? ` (line ${err.line || 0}, col ${err.column || 0})` : '';
+          const msg = `${err.type}: ${err.description}${pos}`;
           consoleOutput.update(items => [...items, { type: 'error', message: msg }]);
         });
       } else {

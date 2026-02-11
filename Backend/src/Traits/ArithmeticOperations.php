@@ -12,7 +12,7 @@ trait ArithmeticOperations
     /**
      * Realiza una suma entre dos valores
      */
-    protected function performAddition(Value $left, Value $right): Value
+    protected function performAddition(Value $left, Value $right, int $line = 0, int $column = 0): Value
     {
         $leftType = $left->getType();
         $rightType = $right->getType();
@@ -59,14 +59,17 @@ trait ArithmeticOperations
 
         // Operación inválida - generar error semántico
         $this->addSemanticError(
-            "Operación no válida: no se puede sumar '$leftType' + '$rightType'",0,0);
+            "Operación no válida: no se puede sumar '$leftType' + '$rightType'",
+            $line,
+            $column
+        );
         return Value::nil();
     }
 
     /**
      * Realiza una resta entre dos valores
      */
-    protected function performSubtraction(Value $left, Value $right): Value
+    protected function performSubtraction(Value $left, Value $right, int $line = 0, int $column = 0): Value
     {
         $leftType = $left->getType();
         $rightType = $right->getType();
@@ -107,14 +110,17 @@ trait ArithmeticOperations
 
         // Operación inválida
         $this->addSemanticError(
-            "Operación no válida: no se puede restar '$leftType' - '$rightType'",0,0);
+            "Operación no válida: no se puede restar '$leftType' - '$rightType'",
+            $line,
+            $column
+        );
         return Value::nil();
     }
 
     /**
      * Realiza una multiplicación entre dos valores
      */
-    protected function performMultiplication(Value $left, Value $right): Value
+    protected function performMultiplication(Value $left, Value $right, int $line = 0, int $column = 0): Value
     {
         $leftType = $left->getType();
         $rightType = $right->getType();
@@ -155,14 +161,17 @@ trait ArithmeticOperations
 
         // Operación inválida
         $this->addSemanticError(
-            "Operación no válida: no se puede multiplicar '$leftType' * '$rightType'",0,0);
+            "Operación no válida: no se puede multiplicar '$leftType' * '$rightType'",
+            $line,
+            $column
+        );
         return Value::nil();
     }
 
     /**
      * Realiza una división entre dos valores
      */
-    protected function performDivision(Value $left, Value $right): Value
+    protected function performDivision(Value $left, Value $right, int $line = 0, int $column = 0): Value
     {
         $leftType = $left->getType();
         $rightType = $right->getType();
@@ -198,14 +207,17 @@ trait ArithmeticOperations
 
         // Operación inválida
         $this->addSemanticError(
-            "Operación no válida: no se puede dividir '$leftType' / '$rightType'",0,0);
+            "Operación no válida: no se puede dividir '$leftType' / '$rightType'",
+            $line,
+            $column
+        );
         return Value::nil();
     }
 
     /**
      * Realiza operación módulo entre dos valores
      */
-    protected function performModulo(Value $left, Value $right): Value
+    protected function performModulo(Value $left, Value $right, int $line = 0, int $column = 0): Value
     {
         $leftType = $left->getType();
         $rightType = $right->getType();
@@ -236,7 +248,10 @@ trait ArithmeticOperations
 
         // Operación inválida
         $this->addSemanticError(
-            "Operación no válida: no se puede calcular módulo '$leftType' % '$rightType'",0,0);
+            "Operación no válida: no se puede calcular módulo '$leftType' % '$rightType'",
+            $line,
+            $column
+        );
         return Value::nil();
     }
 }

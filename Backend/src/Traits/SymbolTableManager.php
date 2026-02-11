@@ -58,6 +58,34 @@ trait SymbolTableManager
         return true;
     }
 
+    /**
+     * Añade una ocurrencia/instancia de un símbolo (no realiza comprobación de duplicados).
+     * Útil para registrar cada uso (por ejemplo llamadas a funciones) con su posición.
+     */
+    protected function addSymbolOccurrence(
+        string $identifier,
+        string $type,
+        string $scope,
+        $value,
+        int $line,
+        int $column
+    ): void {
+        $symbol = [
+            'identifier' => $identifier,
+            'type' => $type,
+            'scope' => $scope,
+            'value' => $value,
+            'line' => $line,
+            'column' => $column
+        ];
+
+        if (!empty($this->scopeStack)) {
+            $this->scopeStack[count($this->scopeStack) - 1]['symbols'][] = $symbol;
+        } else {
+            $this->symbolTable[] = $symbol;
+        }
+    }
+
     protected function symbolExistsInCurrentScope(string $identifier): bool
     {
         if (empty($this->scopeStack)) {

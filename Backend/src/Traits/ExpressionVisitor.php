@@ -87,9 +87,9 @@ trait ExpressionVisitor
             $multiplicativeIndex++;
             
             if ($op === '+') {
-                $left = $this->performAddition($left, $right);
+                $left = $this->performAddition($left, $right, $context->getStart()->getLine(), $context->getStart()->getCharPositionInLine());
             } elseif ($op === '-') {
-                $left = $this->performSubtraction($left, $right);
+                $left = $this->performSubtraction($left, $right, $context->getStart()->getLine(), $context->getStart()->getCharPositionInLine());
             }
         }
         
@@ -111,13 +111,13 @@ trait ExpressionVisitor
             
             switch ($op) {
                 case '*':
-                    $left = $this->performMultiplication($left, $right);
+                    $left = $this->performMultiplication($left, $right, $context->getStart()->getLine(), $context->getStart()->getCharPositionInLine());
                     break;
                 case '/':
-                    $left = $this->performDivision($left, $right);
+                    $left = $this->performDivision($left, $right, $context->getStart()->getLine(), $context->getStart()->getCharPositionInLine());
                     break;
                 case '%':
-                    $left = $this->performModulo($left, $right);
+                    $left = $this->performModulo($left, $right, $context->getStart()->getLine(), $context->getStart()->getCharPositionInLine());
                     break;
             }
         }

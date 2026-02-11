@@ -51,7 +51,6 @@ abstract class BaseVisitor extends \GolampiBaseVisitor
 
         // Registrar el espacio de nombres `fmt` como una variable especial
         $this->environment->define('fmt', Value::string('namespace'));
-        $this->addSymbol('fmt.Println', 'function', 'global', Value::nil(), 0, 0);
 
         // len
         $this->functions['len'] = function($arg) {
