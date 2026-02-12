@@ -2,14 +2,17 @@
   import { onMount } from 'svelte';
   import { editorCode, consoleOutput, symbolTable, errors, isExecuting } from '../lib/store.js';
   import Console from './Console.svelte';
-  import SymbolTable from './SymbolTable.svelte';
-  import ErrorsPanel from './ErrorsPanel.svelte';
   import { executeCode, clearAll, fetchLastErrors, fetchLastSymbols } from '../lib/api.js';
-  
+  import Modal from './Modal.svelte';
+  import ErrorsTable from './ErrorsTable.svelte';
+  import SymbolsTable from './SymbolsTable.svelte';
+
   let activeTab = 'console';
   let fileName = 'main.golampi';
   let lineNumbers = [];
   let executionTime = '0ms';
+  let isModalOpen = false;
+  let modalContent: 'errors' | 'symbols' | null = null;
   
   $: updateLineNumbers($editorCode);
   
@@ -24,8 +27,7 @@
     isExecuting.set(true);
     consoleOutput.set([
       { type: 'system', message: 'Connecting to backend server...' },
-      { type: 'success', message: 'Golampi worker thread initialized.' },
-      { type: 'info', message: 'Starting interpreter...' }
+      { type: 'success', message: 'Initiated interpreter' },
     ]);
     
     const result = await executeCode($editorCode);
@@ -69,24 +71,22 @@
     const res = await fetchLastErrors();
     if (res && res.success) {
       errors.set(res.errors || []);
-      // Show the errors panel
-      activeTab = 'errors';
     } else {
-      // set empty errors and show panel
       errors.set([]);
-      activeTab = 'errors';
     }
+    modalContent = 'errors';
+    isModalOpen = true;
   }
 
   async function showLastSymbols() {
     const res = await fetchLastSymbols();
     if (res && res.success) {
       symbolTable.set(res.symbolTable || []);
-      activeTab = 'symbols';
     } else {
       symbolTable.set([]);
-      activeTab = 'symbols';
     }
+    modalContent = 'symbols';
+    isModalOpen = true;
   }
   
   function clear() {
@@ -286,6 +286,15 @@
     </div>
   </div>
 
+  {#if isModalOpen}
+    <Modal on:close={() => isModalOpen = false}>
+      {#if modalContent === 'errors'}
+        <ErrorsTable />
+      {:else if modalContent === 'symbols'}
+        <SymbolsTable />
+      {/if}
+    </Modal>
+  {/if}
 </div>
 
 <style>
@@ -485,7 +494,7 @@
     flex-direction: column;
   }
   
-  .output-tabs {
+.output-tabs {
     display: flex;
     background: #252526;
     border-bottom: 1px solid #3E3E3E;

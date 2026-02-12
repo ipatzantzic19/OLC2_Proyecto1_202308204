@@ -8,8 +8,8 @@
       <thead>
         <tr>
           <th>#</th>
-          <th>Type</th>
-          <th>Description</th>
+          <th>Tipo</th>
+          <th>Descripcion</th>
           <th>Line</th>
           <th>Column</th>
         </tr>
@@ -32,7 +32,7 @@
         <circle cx="12" cy="12" r="10" stroke="#6A9955" fill="none" stroke-width="2"/>
         <path d="M8 12l3 3 5-6" stroke="#6A9955" stroke-width="2" fill="none"/>
       </svg>
-      <p>No errors found. Code is valid!</p>
+      <p>No se encontraron errores. ¡El código es válido!</p>
     </div>
   {/if}
 </div>

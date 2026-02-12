@@ -7,11 +7,12 @@
     <table class="symbols-table">
       <thead>
         <tr>
-          <th>Identifier</th>
-          <th>Type</th>
-          <th>Value</th>
-          <th>Scope</th>
+          <th>Identificador</th>
+          <th>Tipo</th>
+          <th>Valor</th>
+          <th>Ambito</th>
           <th>Line</th>
+          <th>Column</th>
         </tr>
       </thead>
       <tbody>
@@ -22,6 +23,7 @@
             <td class="value">{symbol.value}</td>
             <td class="scope">{symbol.scope}</td>
             <td class="line">{symbol.line}</td>
+            <td class="column">{symbol.column}</td>
           </tr>
         {/each}
       </tbody>
@@ -89,6 +91,10 @@
   }
   
   .line {
+    color: #858585;
+    text-align: center;
+  }
+  .column {
     color: #858585;
     text-align: center;
   }
