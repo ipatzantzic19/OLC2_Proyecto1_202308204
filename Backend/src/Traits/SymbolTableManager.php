@@ -7,6 +7,7 @@ trait SymbolTableManager
     protected array $symbolTable = [];
     protected int $currentScope = 0;
     protected array $scopeStack = [];
+    private array $reportingSymbolTable = []; // Para el reporte en orden
 
     protected function enterScope(string $scopeName): void
     {
@@ -22,7 +23,8 @@ trait SymbolTableManager
     {
         if (!empty($this->scopeStack)) {
             $scope = array_pop($this->scopeStack);
-            // ✅ CAMBIO: Agregar símbolos del scope en el orden que fueron creados
+            // El array $this->symbolTable ya no se usa para el reporte final,
+            // pero mantenemos la lógica por si se usa en otro lugar.
             foreach ($scope['symbols'] as $symbol) {
                 $this->symbolTable[] = $symbol;
             }
@@ -51,13 +53,16 @@ trait SymbolTableManager
             'column' => $column
         ];
 
-        // ✅ CAMBIO: Si estamos en un scope, agregar ahí; si no, agregar directo a la tabla
+        // Añadir al scope actual para la resolución
         if (!empty($this->scopeStack)) {
             $this->scopeStack[count($this->scopeStack) - 1]['symbols'][] = $symbol;
         } else {
-            // Scope global - agregar directo a la tabla principal
+            // Scope global
             $this->symbolTable[] = $symbol;
         }
+
+        // Añadir a la tabla de reporte para mantener el orden de declaración
+        $this->reportingSymbolTable[] = $symbol;
 
         return true;
     }
@@ -83,12 +88,15 @@ trait SymbolTableManager
             'column' => $column
         ];
 
-        // ✅ CAMBIO: Agregar según el scope actual
+        // Añadir al scope actual para la resolución
         if (!empty($this->scopeStack)) {
             $this->scopeStack[count($this->scopeStack) - 1]['symbols'][] = $symbol;
         } else {
             $this->symbolTable[] = $symbol;
         }
+
+        // Añadir a la tabla de reporte para mantener el orden de declaración
+        $this->reportingSymbolTable[] = $symbol;
     }
 
     protected function symbolExistsInCurrentScope(string $identifier): bool
@@ -127,7 +135,7 @@ trait SymbolTableManager
         // Buscar en la tabla global
         foreach ($this->symbolTable as $symbol) {
             if ($symbol['identifier'] === $identifier) {
-                return $symbol;
+                return true;
             }
         }
 
@@ -144,9 +152,8 @@ trait SymbolTableManager
 
     public function getSymbolTable(): array
     {
-        // ✅ CAMBIO: Ya no combinar, solo retornar la tabla principal
-        // Los símbolos ya están en orden porque se agregan cuando se cierra el scope
-        return $this->symbolTable;
+        // Devolver la tabla que mantiene el orden de declaración.
+        return $this->reportingSymbolTable;
     }
 
     public function clearSymbolTable(): void
@@ -154,5 +161,6 @@ trait SymbolTableManager
         $this->symbolTable = [];
         $this->scopeStack = [];
         $this->currentScope = 0;
+        $this->reportingSymbolTable = [];
     }
 }

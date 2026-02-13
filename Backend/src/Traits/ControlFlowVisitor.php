@@ -293,6 +293,14 @@ trait ControlFlowVisitor
      */
     public function visitBreakStatement($context)
     {
+        if (!$this->isInsideScope(['for', 'switch'])) {
+            $this->addSemanticError(
+                "La sentencia 'break' solo puede usarse dentro de un ciclo ('for') o un 'switch'",
+                $context->getStart()->getLine(),
+                $context->getStart()->getCharPositionInLine()
+            );
+            return null;
+        }
         throw new BreakException();
     }
 
@@ -301,6 +309,14 @@ trait ControlFlowVisitor
      */
     public function visitContinueStatement($context)
     {
+        if (!$this->isInsideScope(['for'])) {
+            $this->addSemanticError(
+                "La sentencia 'continue' solo puede usarse dentro de un ciclo ('for')",
+                $context->getStart()->getLine(),
+                $context->getStart()->getCharPositionInLine()
+            );
+            return null;
+        }
         throw new ContinueException();
     }
 
@@ -309,6 +325,16 @@ trait ControlFlowVisitor
      */
     public function visitReturnStatement($context)
     {
+        // Asumiendo que las funciones crearán un scope 'function'.
+        if (!$this->isInsideScope(['function'])) {
+            $this->addSemanticError(
+                "La sentencia 'return' solo puede usarse dentro de una función",
+                $context->getStart()->getLine(),
+                $context->getStart()->getCharPositionInLine()
+            );
+            return null;
+        }
+
         $expressionList = $context->expressionList();
 
         if ($expressionList === null) {
@@ -338,5 +364,19 @@ trait ControlFlowVisitor
         }
 
         return $a->getValue() == $b->getValue();
+    }
+
+    /**
+     * Verifica si el visitor se encuentra dentro de un scope con uno de los tipos proporcionados.
+     */
+    private function isInsideScope(array $scopeTypes): bool
+    {
+        // Iterar la pila de scopes desde el más reciente al más antiguo
+        for ($i = count($this->scopeStack) - 1; $i >= 0; $i--) {
+            if (in_array($this->scopeStack[$i]['name'], $scopeTypes, true)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
