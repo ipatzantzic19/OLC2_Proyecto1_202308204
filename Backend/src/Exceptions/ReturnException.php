@@ -6,28 +6,6 @@ use Exception;
 use Golampi\Runtime\Value;
 
 /**
- * Excepción para manejar la sentencia break
- */
-class BreakException extends Exception
-{
-    public function __construct()
-    {
-        parent::__construct("break");
-    }
-}
-
-/**
- * Excepción para manejar la sentencia continue
- */
-class ContinueException extends Exception
-{
-    public function __construct()
-    {
-        parent::__construct("continue");
-    }
-}
-
-/**
  * Excepción para manejar la sentencia return
  */
 class ReturnException extends Exception
