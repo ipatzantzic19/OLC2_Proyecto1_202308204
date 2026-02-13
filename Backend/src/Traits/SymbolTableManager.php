@@ -22,6 +22,7 @@ trait SymbolTableManager
     {
         if (!empty($this->scopeStack)) {
             $scope = array_pop($this->scopeStack);
+            // ✅ CAMBIO: Agregar símbolos del scope en el orden que fueron creados
             foreach ($scope['symbols'] as $symbol) {
                 $this->symbolTable[] = $symbol;
             }
@@ -36,6 +37,7 @@ trait SymbolTableManager
         int $line,
         int $column
     ): bool {
+        // Verificar duplicados solo en el scope actual
         if ($this->symbolExistsInCurrentScope($identifier)) {
             return false;
         }
@@ -49,9 +51,11 @@ trait SymbolTableManager
             'column' => $column
         ];
 
+        // ✅ CAMBIO: Si estamos en un scope, agregar ahí; si no, agregar directo a la tabla
         if (!empty($this->scopeStack)) {
             $this->scopeStack[count($this->scopeStack) - 1]['symbols'][] = $symbol;
         } else {
+            // Scope global - agregar directo a la tabla principal
             $this->symbolTable[] = $symbol;
         }
 
@@ -79,6 +83,7 @@ trait SymbolTableManager
             'column' => $column
         ];
 
+        // ✅ CAMBIO: Agregar según el scope actual
         if (!empty($this->scopeStack)) {
             $this->scopeStack[count($this->scopeStack) - 1]['symbols'][] = $symbol;
         } else {
@@ -89,6 +94,7 @@ trait SymbolTableManager
     protected function symbolExistsInCurrentScope(string $identifier): bool
     {
         if (empty($this->scopeStack)) {
+            // Estamos en scope global
             foreach ($this->symbolTable as $symbol) {
                 if ($symbol['identifier'] === $identifier && $symbol['scope'] === 'global') {
                     return true;
@@ -97,6 +103,7 @@ trait SymbolTableManager
             return false;
         }
 
+        // Estamos en un scope anidado
         $currentScope = $this->scopeStack[count($this->scopeStack) - 1];
         foreach ($currentScope['symbols'] as $symbol) {
             if ($symbol['identifier'] === $identifier) {
@@ -108,6 +115,7 @@ trait SymbolTableManager
 
     protected function findSymbol(string $identifier): ?array
     {
+        // Buscar desde el scope más interno hacia afuera
         for ($i = count($this->scopeStack) - 1; $i >= 0; $i--) {
             foreach ($this->scopeStack[$i]['symbols'] as $symbol) {
                 if ($symbol['identifier'] === $identifier) {
@@ -116,6 +124,7 @@ trait SymbolTableManager
             }
         }
 
+        // Buscar en la tabla global
         foreach ($this->symbolTable as $symbol) {
             if ($symbol['identifier'] === $identifier) {
                 return $symbol;
@@ -135,13 +144,9 @@ trait SymbolTableManager
 
     public function getSymbolTable(): array
     {
-        $allSymbols = $this->symbolTable;
-        
-        foreach ($this->scopeStack as $scope) {
-            $allSymbols = array_merge($allSymbols, $scope['symbols']);
-        }
-        
-        return $allSymbols;
+        // ✅ CAMBIO: Ya no combinar, solo retornar la tabla principal
+        // Los símbolos ya están en orden porque se agregan cuando se cierra el scope
+        return $this->symbolTable;
     }
 
     public function clearSymbolTable(): void
