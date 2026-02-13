@@ -202,7 +202,7 @@ echo "                    INTÉRPRETE GOLAMPI - SISTEMA DE PRUEBAS\n";
 echo str_repeat("=", 100) . "\n";
 
 // Determinar el archivo a ejecutar
-$testFile = $argv[1] ?? __DIR__ . '/test2.golampi';
+$testFile = $argv[1] ?? __DIR__ . '/test_controlFLujo.golampi';
 
 if (!file_exists($testFile)) {
     echo "❌ Error: El archivo '$testFile' no existe\n";

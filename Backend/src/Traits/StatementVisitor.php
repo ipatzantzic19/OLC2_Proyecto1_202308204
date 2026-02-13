@@ -2,8 +2,11 @@
 
 namespace Golampi\Traits;
 
+use Golampi\Runtime\Environment;
+
 /**
  * Trait para visitar sentencias del AST
+ * VERSIÓN ACTUALIZADA con scopes automáticos en bloques
  */
 trait StatementVisitor
 {
@@ -33,17 +36,41 @@ trait StatementVisitor
 
     /**
      * Visita un bloque de código
+     *  AHORA CREA SCOPE AUTOMÁTICAMENTE
      */
     public function visitBlock($context)
     {
-        if ($context->getChildCount() > 2) {
-            for ($i = 1; $i < $context->getChildCount() - 1; $i++) {
-                $child = $context->getChild($i);
-                if ($child instanceof \Antlr\Antlr4\Runtime\ParserRuleContext) {
-                    $this->visit($child);
+        //  CREAR NUEVO AMBIENTE para el bloque
+        $parentEnv = $this->environment;
+        $this->environment = new Environment($parentEnv);
+        
+        //  OPCIONAL: Crear scope en tabla de símbolos
+        // Solo si no estamos ya en un scope especial (for, switch, función)
+        $currentScope = $this->getCurrentScopeName();
+        $createScope = !in_array($currentScope, ['for', 'switch', 'function']);
+        
+        if ($createScope) {
+            $this->enterScope('block');
+        }
+
+        try {
+            // Visitar contenido del bloque
+            if ($context->getChildCount() > 2) {
+                for ($i = 1; $i < $context->getChildCount() - 1; $i++) {
+                    $child = $context->getChild($i);
+                    if ($child instanceof \Antlr\Antlr4\Runtime\ParserRuleContext) {
+                        $this->visit($child);
+                    }
                 }
             }
+        } finally {
+            //  RESTAURAR AMBIENTE
+            if ($createScope) {
+                $this->exitScope();
+            }
+            $this->environment = $parentEnv;
         }
+
         return null;
     }
 
@@ -62,11 +89,40 @@ trait StatementVisitor
     {
         $funcName = $context->ID()->getText();
         
-        // Por ahora, solo soportamos main
+        //  REGISTRAR FUNCIÓN en tabla de símbolos
+        $this->addSymbol(
+            $funcName,
+            'function',
+            'global',
+            \Golampi\Runtime\Value::nil(),
+            $context->getStart()->getLine(),
+            $context->getStart()->getCharPositionInLine()
+        );
+        
+        // Por ahora, solo ejecutamos main
         if ($funcName === 'main') {
-            $blockCtx = $context->block();
-            if ($blockCtx) {
-                $this->visit($blockCtx);
+            //  CREAR SCOPE para la función
+            $parentEnv = $this->environment;
+            $this->environment = new Environment($parentEnv);
+            $this->enterScope('function:main');
+            
+            try {
+                $blockCtx = $context->block();
+                if ($blockCtx) {
+                    // NO crear otro scope porque block() ya lo crea
+                    // Solo visitar el contenido
+                    if ($blockCtx->getChildCount() > 2) {
+                        for ($i = 1; $i < $blockCtx->getChildCount() - 1; $i++) {
+                            $child = $blockCtx->getChild($i);
+                            if ($child instanceof \Antlr\Antlr4\Runtime\ParserRuleContext) {
+                                $this->visit($child);
+                            }
+                        }
+                    }
+                }
+            } finally {
+                $this->exitScope();
+                $this->environment = $parentEnv;
             }
         }
         
@@ -101,11 +157,11 @@ trait StatementVisitor
 
         // Buscar función
         if ($this->functionExists($funcName)) {
-            // Registrar una ocurrencia/uso de la función (se guardan todas las apariciones)
+            // Registrar uso de la función en tabla de símbolos
             $this->addSymbolOccurrence(
                 $funcName,
                 'function',
-                'global',
+                $this->getCurrentScopeName(),
                 \Golampi\Runtime\Value::nil(),
                 $context->getStart()->getLine(),
                 $context->getStart()->getCharPositionInLine()

@@ -65,6 +65,7 @@ statement
     | breakStatement
     | continueStatement
     | returnStatement
+    | incDecStatement
     | block
     | expressionStatement
     ;
@@ -79,10 +80,15 @@ assignOp
     : '=' | '+=' | '-=' | '*=' | '/='
     ;
 
+// ==================== INCREMENTO/DECREMENTO ====================
+incDecStatement
+    : ID '++'                                             # IncrementStatement
+    | ID '--'                                             # DecrementStatement
+    ;
+
 // ==================== CONTROL DE FLUJO ====================
 ifStatement
-    : IF expression block (ELSE ifStatement)?             # IfElseIf
-    | IF expression block (ELSE block)?                   # IfElse
+    : IF expression block (ELSE IF expression block)* (ELSE block)?  # IfElseIfElse
     ;
 
 switchStatement
@@ -90,7 +96,7 @@ switchStatement
     ;
 
 caseClause
-    : CASE expression ':' statement*
+    : CASE expressionList ':' statement*
     ;
 
 defaultClause
@@ -98,9 +104,27 @@ defaultClause
     ;
 
 forStatement
-    : FOR varDeclaration ';' expression ';' expression block # ForTraditional
-    | FOR expression block                                    # ForWhile
-    | FOR block                                               # ForInfinite
+    : FOR forClause block                                 # ForTraditional
+    | FOR expression block                                # ForWhile
+    | FOR block                                           # ForInfinite
+    ;
+
+forClause
+    : forInit ';' expression? ';' forPost
+    ;
+
+forInit
+    : varDeclaration
+    | shortVarDeclaration
+    | assignment
+    | incDecStatement
+    | /* empty */
+    ;
+
+forPost
+    : assignment
+    | incDecStatement
+    | /* empty */
     ;
 
 breakStatement

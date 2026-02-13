@@ -3,6 +3,7 @@
 namespace Golampi\Visitor;
 
 use Golampi\Runtime\Value;
+use Golampi\Runtime\Environment;
 use Golampi\Traits\ArithmeticOperations;
 use Golampi\Traits\RelationalOperations;
 use Golampi\Traits\ExpressionVisitor;
@@ -10,10 +11,10 @@ use Golampi\Traits\DeclarationVisitor;
 use Golampi\Traits\StatementVisitor;
 use Golampi\Traits\AssignmentVisitor;
 use Golampi\Traits\ControlFlowVisitor;
+use Golampi\Traits\IncrementDecrementVisitor;
 
 /**
  * Visitor principal del intérprete de Golampi
- * Usa traits para organizar la funcionalidad
  */
 class GolampiVisitor extends BaseVisitor
 {
@@ -24,6 +25,7 @@ class GolampiVisitor extends BaseVisitor
     use StatementVisitor;
     use AssignmentVisitor;
     use ControlFlowVisitor;
+    use IncrementDecrementVisitor;
 
     public function __construct()
     {
