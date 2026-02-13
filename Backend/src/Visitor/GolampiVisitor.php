@@ -9,6 +9,8 @@ use Golampi\Traits\ExpressionVisitor;
 use Golampi\Traits\DeclarationVisitor;
 use Golampi\Traits\StatementVisitor;
 use Golampi\Traits\AssignmentVisitor;
+use Golampi\Traits\ControlFlowVisitor;
+
 /**
  * Visitor principal del intérprete de Golampi
  * Usa traits para organizar la funcionalidad
@@ -21,11 +23,13 @@ class GolampiVisitor extends BaseVisitor
     use DeclarationVisitor;
     use StatementVisitor;
     use AssignmentVisitor;
+    use ControlFlowVisitor;
+
     public function __construct()
     {
         parent::__construct();
 
-        // Registrar el espacio de nombres `fmt` como una variable especial (no lo añadimos a la tabla de símbolos aquí)
+        // Registrar el espacio de nombres `fmt` como una variable especial
         $this->environment->define('fmt', Value::string('namespace'));
     }
 }

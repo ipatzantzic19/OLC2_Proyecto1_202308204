@@ -4,9 +4,9 @@ namespace Golampi\Traits;
 
 trait SymbolTableManager
 {
-    private array $symbolTable = [];
-    private int $currentScope = 0;
-    private array $scopeStack = [];
+    protected array $symbolTable = [];
+    protected int $currentScope = 0;
+    protected array $scopeStack = [];
 
     protected function enterScope(string $scopeName): void
     {
