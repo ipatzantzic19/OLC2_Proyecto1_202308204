@@ -57,7 +57,11 @@ trait IncrementDecrementVisitor
             $newValue = Value::rune($current->getValue() + 1);
         }
         
+        // ACTUALIZR en el entorno
         $this->environment->set($varName, $newValue);
+        
+        // ACTUALIZAR en la tabla de símbolos
+        $this->updateSymbolValue($varName, $newValue);
         
         return null;
     }
@@ -71,7 +75,7 @@ trait IncrementDecrementVisitor
         $line = $context->getStart()->getLine();
         $column = $context->getStart()->getCharPositionInLine();
         
-        // Verificar que la variable existe
+        // Verificar que la variable exists
         if (!$this->environment->exists($varName)) {
             $this->addSemanticError(
                 "Variable '$varName' no declarada",
@@ -111,6 +115,8 @@ trait IncrementDecrementVisitor
         }
         
         $this->environment->set($varName, $newValue);
+        
+        $this->updateSymbolValue($varName, $newValue);
         
         return null;
     }

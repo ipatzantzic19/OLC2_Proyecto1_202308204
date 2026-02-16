@@ -6,10 +6,6 @@ use Golampi\Runtime\Value;
 
 /**
  * Trait para manejar asignaciones en el AST
- * Soporta:
- * - Asignación simple: x = 10
- * - Asignaciones compuestas: x += 5, x -= 2, x *= 3, x /= 2
- * - Declaración corta: y := 100
  */
 trait AssignmentVisitor
 {
@@ -52,27 +48,22 @@ trait AssignmentVisitor
         
         switch ($assignOp) {
             case '=':
-                // Asignación simple
                 $newValue = $exprValue;
                 break;
                 
             case '+=':
-                // x += y  →  x = x + y
                 $newValue = $this->performAddition($currentValue, $exprValue, $line, $column);
                 break;
                 
             case '-=':
-                // x -= y  →  x = x - y
                 $newValue = $this->performSubtraction($currentValue, $exprValue, $line, $column);
                 break;
                 
             case '*=':
-                // x *= y  →  x = x * y
                 $newValue = $this->performMultiplication($currentValue, $exprValue, $line, $column);
                 break;
                 
             case '/=':
-                // x /= y  →  x = x / y
                 $newValue = $this->performDivision($currentValue, $exprValue, $line, $column);
                 break;
                 
@@ -97,8 +88,11 @@ trait AssignmentVisitor
             }
         }
         
-        // Actualizar el valor en el entorno
+        //  ACTUALIZAR en el entorno
         $this->environment->set($varName, $newValue);
+        
+        //  ACTUALIZAR en la tabla de símbolos
+        $this->updateSymbolValue($varName, $newValue);
         
         return null;
     }
@@ -202,12 +196,16 @@ trait AssignmentVisitor
                     continue;
                 }
                 
+                //  ACTUALIZAR en el entorno
                 $this->environment->set($varName, $value);
+                
+                //  ACTUALIZAR en la tabla de símbolos
+                $this->updateSymbolValue($varName, $value);
             } else {
                 // Variable nueva - declarar
                 $this->environment->define($varName, $value);
                 
-                // Añadir a la tabla de símbolos
+                //  AÑADIR a la tabla de símbolos
                 $this->addSymbol(
                     $varName,
                     $inferredType,

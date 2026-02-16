@@ -6,7 +6,7 @@ use Golampi\Runtime\Environment;
 
 /**
  * Trait para visitar sentencias del AST
- * VERSIÓN ACTUALIZADA con scopes automáticos en bloques
+ * VERSIÓN CORREGIDA: No registra llamadas a funciones en tabla de símbolos
  */
 trait StatementVisitor
 {
@@ -36,18 +36,16 @@ trait StatementVisitor
 
     /**
      * Visita un bloque de código
-     *  AHORA CREA SCOPE AUTOMÁTICAMENTE
      */
     public function visitBlock($context)
     {
-        //  CREAR NUEVO AMBIENTE para el bloque
+        // Crear nuevo ambiente para el bloque
         $parentEnv = $this->environment;
         $this->environment = new Environment($parentEnv);
         
-        //  OPCIONAL: Crear scope en tabla de símbolos
-        // Solo si no estamos ya en un scope especial (for, switch, función)
+        // Crear scope en tabla de símbolos solo si no estamos ya en un scope especial
         $currentScope = $this->getCurrentScopeName();
-        $createScope = !in_array($currentScope, ['for', 'switch', 'function']);
+        $createScope = !in_array($currentScope, ['for', 'switch', 'function:main', 'if-block', 'else-block']);
         
         if ($createScope) {
             $this->enterScope('block');
@@ -64,7 +62,7 @@ trait StatementVisitor
                 }
             }
         } finally {
-            //  RESTAURAR AMBIENTE
+            // Restaurar ambiente
             if ($createScope) {
                 $this->exitScope();
             }
@@ -89,7 +87,7 @@ trait StatementVisitor
     {
         $funcName = $context->ID()->getText();
         
-        //  REGISTRAR FUNCIÓN en tabla de símbolos
+        // ✅ REGISTRAR FUNCIÓN en tabla de símbolos (solo la DECLARACIÓN)
         $this->addSymbol(
             $funcName,
             'function',
@@ -101,7 +99,7 @@ trait StatementVisitor
         
         // Por ahora, solo ejecutamos main
         if ($funcName === 'main') {
-            //  CREAR SCOPE para la función
+            // Crear scope para la función
             $parentEnv = $this->environment;
             $this->environment = new Environment($parentEnv);
             $this->enterScope('function:main');
@@ -109,8 +107,7 @@ trait StatementVisitor
             try {
                 $blockCtx = $context->block();
                 if ($blockCtx) {
-                    // NO crear otro scope porque block() ya lo crea
-                    // Solo visitar el contenido
+                    // Visitar el contenido del bloque
                     if ($blockCtx->getChildCount() > 2) {
                         for ($i = 1; $i < $blockCtx->getChildCount() - 1; $i++) {
                             $child = $blockCtx->getChild($i);
@@ -131,6 +128,7 @@ trait StatementVisitor
 
     /**
      * Visita una llamada a función
+     * ✅ CORRECCIÓN: NO registra la llamada en la tabla de símbolos
      */
     public function visitFunctionCall($context)
     {
@@ -157,16 +155,8 @@ trait StatementVisitor
 
         // Buscar función
         if ($this->functionExists($funcName)) {
-            // Registrar uso de la función en tabla de símbolos
-            $this->addSymbolOccurrence(
-                $funcName,
-                'function',
-                $this->getCurrentScopeName(),
-                \Golampi\Runtime\Value::nil(),
-                $context->getStart()->getLine(),
-                $context->getStart()->getCharPositionInLine()
-            );
-
+            // ✅ CAMBIO: Ya NO registramos la llamada en la tabla de símbolos
+            // Solo ejecutamos la función
             $func = $this->getFunction($funcName);
             return $func(...$args);
         }
