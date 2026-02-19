@@ -206,7 +206,7 @@ trait AssignmentVisitor
                 $this->environment->define($varName, $value);
                 
                 //  AÑADIR a la tabla de símbolos
-                $this->addSymbol(
+                $added = $this->addSymbol(
                     $varName,
                     $inferredType,
                     $scopeName,
@@ -214,6 +214,10 @@ trait AssignmentVisitor
                     $line,
                     $column
                 );
+
+                if (!$added) {
+                    $this->updateSymbolValue($varName, $value);
+                }
             }
         }
         
