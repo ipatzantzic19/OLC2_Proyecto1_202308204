@@ -34,6 +34,8 @@ func main() {
         fmt.Println("Calificación: A")
     } else if nota >= 80 {
         fmt.Println("Calificación: B")
+                var x int32 = 30
+
     } else if nota >= 70 {
         fmt.Println("Calificación: C")
     } else {
@@ -58,6 +60,7 @@ func main() {
     if true {
         y := 200
         fmt.Println("y dentro del if:", y)
+        fmt.Println("x dentro del if:", x)
     }
     
     

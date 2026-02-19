@@ -7,7 +7,7 @@ trait SymbolTableManager
     protected array $symbolTable = [];
     protected int $currentScope = 0;
     protected array $scopeStack = [];
-    private int $declarationOrder = 0; // ✅ Para mantener el orden
+    private int $declarationOrder = 0; //  Para mantener el orden
 
     protected function enterScope(string $scopeName): void
     {
@@ -50,7 +50,7 @@ trait SymbolTableManager
             'value' => $value,
             'line' => $line,
             'column' => $column,
-            'order' => $this->declarationOrder++ // ✅ Asignar orden de declaración
+            'order' => $this->declarationOrder++ //  Asignar orden de declaración
         ];
 
         // Añadir al scope actual
@@ -65,7 +65,7 @@ trait SymbolTableManager
     }
 
     /**
-     * ✅ Actualiza el valor de un símbolo existente en la tabla
+     *  Actualiza el valor de un símbolo existente en la tabla
      */
     protected function updateSymbolValue(string $identifier, $newValue): bool
     {
@@ -75,7 +75,7 @@ trait SymbolTableManager
             
             for ($j = 0; $j < count($symbols); $j++) {
                 if ($symbols[$j]['identifier'] === $identifier) {
-                    // ✅ Actualizar el valor
+                    //  Actualizar el valor
                     $symbols[$j]['value'] = $newValue;
                     return true;
                 }
@@ -85,7 +85,7 @@ trait SymbolTableManager
         // Buscar en la tabla global
         for ($i = 0; $i < count($this->symbolTable); $i++) {
             if ($this->symbolTable[$i]['identifier'] === $identifier) {
-                // ✅ Actualizar el valor
+                // Actualizar el valor
                 $this->symbolTable[$i]['value'] = $newValue;
                 return true;
             }
@@ -147,7 +147,7 @@ trait SymbolTableManager
 
     public function getSymbolTable(): array
     {
-        // ✅ Ordenar por el campo 'order' antes de retornar
+        //  Ordenar por el campo 'order' antes de retornar
         $table = $this->symbolTable;
         
         usort($table, function($a, $b) {

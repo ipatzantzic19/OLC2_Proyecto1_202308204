@@ -87,7 +87,7 @@ trait StatementVisitor
     {
         $funcName = $context->ID()->getText();
         
-        // ✅ REGISTRAR FUNCIÓN en tabla de símbolos (solo la DECLARACIÓN)
+        //  REGISTRAR FUNCIÓN en tabla de símbolos (solo la DECLARACIÓN)
         $this->addSymbol(
             $funcName,
             'function',
@@ -128,7 +128,7 @@ trait StatementVisitor
 
     /**
      * Visita una llamada a función
-     * ✅ CORRECCIÓN: NO registra la llamada en la tabla de símbolos
+     *  CORRECCIÓN: NO registra la llamada en la tabla de símbolos
      */
     public function visitFunctionCall($context)
     {
@@ -155,7 +155,7 @@ trait StatementVisitor
 
         // Buscar función
         if ($this->functionExists($funcName)) {
-            // ✅ CAMBIO: Ya NO registramos la llamada en la tabla de símbolos
+            //  CAMBIO: Ya NO registramos la llamada en la tabla de símbolos
             // Solo ejecutamos la función
             $func = $this->getFunction($funcName);
             return $func(...$args);

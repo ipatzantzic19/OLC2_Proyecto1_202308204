@@ -82,11 +82,11 @@ trait ControlFlowVisitor
      */
     public function visitForTraditional($context)
     {
-        // ✅ CREAR NUEVO AMBIENTE para el scope del for
+        //  CREAR NUEVO AMBIENTE para el scope del for
         $parentEnv = $this->environment;
         $this->environment = new Environment($parentEnv);
         
-        // ✅ REGISTRAR SCOPE en tabla de símbolos
+        //  REGISTRAR SCOPE en tabla de símbolos
         $this->enterScope('for');
 
         try {
@@ -120,10 +120,10 @@ trait ControlFlowVisitor
                 try {
                     $this->visit($context->block());
                 } catch (BreakException $e) {
-                    // ✅ Break sale del loop
+                    // Break sale del loop
                     break;
                 } catch (ContinueException $e) {
-                    // ✅ Continue salta al post-incremento
+                    // Continue salta al post-incremento
                 }
                 
                 // ========== 3. POST-INCREMENTO ==========
@@ -136,10 +136,10 @@ trait ControlFlowVisitor
                 }
             }
         } catch (ReturnException $e) {
-            // ✅ Return propaga hacia arriba
+            //  Return propaga hacia arriba
             throw $e;
         } finally {
-            // ✅ RESTAURAR AMBIENTE Y SCOPE
+            //  RESTAURAR AMBIENTE Y SCOPE
             $this->exitScope();
             $this->environment = $parentEnv;
         }
