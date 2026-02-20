@@ -74,6 +74,7 @@ statement
 assignment
     : ID assignOp expression                              # SimpleAssignment
     | ID '[' expression ']' assignOp expression           # ArrayAssignment
+    | '*' ID assignOp expression                          # PointerAssignment
     ;
 
 assignOp

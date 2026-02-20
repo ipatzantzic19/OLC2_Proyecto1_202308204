@@ -68,6 +68,53 @@ trait AssignmentVisitor
     }
 
     // =========================================================
+    //  ASIGNACIÓN A PUNTERO (*ptr = expr, *ptr += expr, …)
+    // =========================================================
+    public function visitPointerAssignment($context)
+    {
+        $ptrName   = $context->ID()->getText();
+        $assignOp  = $context->assignOp()->getText();
+        $newValue  = $this->visit($context->expression());
+
+        $line   = $context->getStart()->getLine();
+        $column = $context->getStart()->getCharPositionInLine();
+
+        // Obtener el puntero
+        $ptrValue = $this->environment->get($ptrName);
+
+        if ($ptrValue === null || $ptrValue->getType() !== 'pointer') {
+            $this->addSemanticError(
+                "'$ptrName' no es un puntero válido",
+                $line, $column
+            );
+            return null;
+        }
+
+        $data    = $ptrValue->getValue();
+        $varName = $data['varName'];
+        $env     = $data['env'];
+
+        // Leer valor actual del apuntado
+        $current = $env->get($varName);
+
+        $finalValue = match ($assignOp) {
+            '='  => $newValue,
+            '+=' => $this->performAddition($current, $newValue, $line, $column),
+            '-=' => $this->performSubtraction($current, $newValue, $line, $column),
+            '*=' => $this->performMultiplication($current, $newValue, $line, $column),
+            '/=' => $this->performDivision($current, $newValue, $line, $column),
+            default => null,
+        };
+
+        if ($finalValue === null) return null;
+
+        // Escribir en el entorno original
+        $env->set($varName, $finalValue);
+        $this->updateSymbolValue($varName, $finalValue);
+
+        return null;
+    }    
+    // =========================================================
     //  DECLARACIÓN CORTA (x := expr  o  x, y := f())
     // =========================================================
 
