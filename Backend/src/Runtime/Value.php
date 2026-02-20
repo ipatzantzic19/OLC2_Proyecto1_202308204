@@ -51,6 +51,7 @@ class Value
         if ($this->type === 'string') return $this->value;
         return (string)$this->value;
     }
+    // ==================== CONSTRUCTORES ESTÁTICOS ====================
 
     public static function nil(): Value
     {
@@ -80,5 +81,20 @@ class Value
     public static function rune(int $value): Value
     {
         return new Value('rune', $value);
+    }
+
+    // Múltiples valores de retorno
+
+    public static function multi(array $values): Value
+    {
+        return new Value('multi', $values);
+    }
+
+    /**
+     * Puntero a una variable en un entorno dado
+     */
+    public static function pointer(string $varName, Environment $env): Value
+    {
+        return new Value('pointer', ['varName' => $varName, 'env' => $env]);
     }
 }

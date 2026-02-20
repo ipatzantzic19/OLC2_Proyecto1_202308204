@@ -9,46 +9,37 @@ use Golampi\Exceptions\ContinueException;
 use Golampi\Exceptions\ReturnException;
 
 /**
- * Trait para visitar sentencias de control de flujo del AST
- * VERSIÓN CORREGIDA con imports correctos de excepciones
+ * Trait para visitar sentencias de control de flujo del AST.
  */
 trait ControlFlowVisitor
 {
-    /**
-     * Visita una sentencia if/else-if/else.
-     * La gramática define una sola regla para todas las variantes:
-     * IF expression block (ELSE IF expression block)* (ELSE block)?
-     */
+    // =========================================================
+    //  IF / ELSE-IF / ELSE
+    // =========================================================
+
     public function visitIfElseIfElse($context)
     {
-        // Obtenemos todas las condiciones (del if y de los else if)
         $conditions = $context->expression();
 
-        // Iteramos a través de todas las condiciones.
         foreach ($conditions as $index => $conditionCtx) {
             $conditionResult = $this->visit($conditionCtx);
 
-            // Validamos que el resultado de la condición sea un valor manejable.
             if (!$conditionResult instanceof Value) {
                 $this->addSemanticError(
                     "La condición del 'if' debe ser una expresión válida",
                     $conditionCtx->getStart()->getLine(),
                     $conditionCtx->getStart()->getCharPositionInLine()
                 );
-                return null; // Detener la ejecución de esta sentencia
+                return null;
             }
 
-            // Si la condición es verdadera...
             if ($conditionResult->toBool()) {
-                // ...ejecutamos el bloque correspondiente en un nuevo scope y salimos.
-                $blockToVisit = $context->block($index);
-
                 $parentEnv = $this->environment;
                 $this->environment = new Environment($parentEnv);
                 $this->enterScope('if-block');
 
                 try {
-                    $this->visit($blockToVisit);
+                    $this->visit($context->block($index));
                 } finally {
                     $this->exitScope();
                     $this->environment = $parentEnv;
@@ -58,7 +49,7 @@ trait ControlFlowVisitor
             }
         }
 
-        // Si ninguna condición fue verdadera, verificamos si existe un bloque 'else'.
+        // Bloque else (si existe)
         if (count($context->block()) > count($conditions)) {
             $elseBlock = $context->block(count($context->block()) - 1);
 
@@ -77,69 +68,52 @@ trait ControlFlowVisitor
         return null;
     }
 
-    /**
-     * Visita un for tradicional con la nueva gramática
-     */
+    // =========================================================
+    //  FOR TRADICIONAL
+    // =========================================================
+
     public function visitForTraditional($context)
     {
-        //  CREAR NUEVO AMBIENTE para el scope del for
         $parentEnv = $this->environment;
         $this->environment = new Environment($parentEnv);
-        
-        //  REGISTRAR SCOPE en tabla de símbolos
         $this->enterScope('for');
 
         try {
             $forClause = $context->forClause();
-            
-            // ========== 1. INICIALIZACIÓN ==========
-            $initCtx = $forClause->forInit();
-            
-            if ($initCtx->varDeclaration()) {
-                $this->visit($initCtx->varDeclaration());
-            } elseif ($initCtx->shortVarDeclaration()) {
-                $this->visit($initCtx->shortVarDeclaration());
-            } elseif ($initCtx->assignment()) {
-                $this->visit($initCtx->assignment());
-            } elseif ($initCtx->incDecStatement()) {
-                $this->visit($initCtx->incDecStatement());
-            }
 
-            // ========== 2. LOOP ==========
+            // 1. Inicialización
+            $initCtx = $forClause->forInit();
+            if ($initCtx->varDeclaration())     { $this->visit($initCtx->varDeclaration()); }
+            elseif ($initCtx->shortVarDeclaration()) { $this->visit($initCtx->shortVarDeclaration()); }
+            elseif ($initCtx->assignment())     { $this->visit($initCtx->assignment()); }
+            elseif ($initCtx->incDecStatement()){ $this->visit($initCtx->incDecStatement()); }
+
+            // 2. Loop
             while (true) {
-                // Evaluar condición
                 if ($forClause->expression()) {
                     $condition = $this->visit($forClause->expression());
-                    
                     if (!$condition instanceof Value || !$condition->toBool()) {
                         break;
                     }
                 }
-                
-                // Ejecutar bloque
+
                 try {
                     $this->visit($context->block());
                 } catch (BreakException $e) {
-                    // Break sale del loop
                     break;
                 } catch (ContinueException $e) {
-                    // Continue salta al post-incremento
+                    // continúa al post-incremento
                 }
-                
-                // ========== 3. POST-INCREMENTO ==========
+
+                // 3. Post-incremento
                 $postCtx = $forClause->forPost();
-                
-                if ($postCtx->assignment()) {
-                    $this->visit($postCtx->assignment());
-                } elseif ($postCtx->incDecStatement()) {
-                    $this->visit($postCtx->incDecStatement());
-                }
+                if ($postCtx->assignment())     { $this->visit($postCtx->assignment()); }
+                elseif ($postCtx->incDecStatement()) { $this->visit($postCtx->incDecStatement()); }
             }
+
         } catch (ReturnException $e) {
-            //  Return propaga hacia arriba
             throw $e;
         } finally {
-            //  RESTAURAR AMBIENTE Y SCOPE
             $this->exitScope();
             $this->environment = $parentEnv;
         }
@@ -147,9 +121,10 @@ trait ControlFlowVisitor
         return null;
     }
 
-    /**
-     * Visita un for estilo while
-     */
+    // =========================================================
+    //  FOR WHILE
+    // =========================================================
+
     public function visitForWhile($context)
     {
         $parentEnv = $this->environment;
@@ -159,7 +134,6 @@ trait ControlFlowVisitor
         try {
             while (true) {
                 $condition = $this->visit($context->expression());
-
                 if (!$condition instanceof Value || !$condition->toBool()) {
                     break;
                 }
@@ -182,9 +156,10 @@ trait ControlFlowVisitor
         return null;
     }
 
-    /**
-     * Visita un for infinito
-     */
+    // =========================================================
+    //  FOR INFINITO
+    // =========================================================
+
     public function visitForInfinite($context)
     {
         $parentEnv = $this->environment;
@@ -211,9 +186,10 @@ trait ControlFlowVisitor
         return null;
     }
 
-    /**
-     * Visita una sentencia switch
-     */
+    // =========================================================
+    //  SWITCH
+    // =========================================================
+
     public function visitSwitchStatement($context)
     {
         $parentEnv = $this->environment;
@@ -223,18 +199,12 @@ trait ControlFlowVisitor
         try {
             $switchValue = $this->visit($context->expression());
 
-            $matched = false;
-            $shouldExecute = false;
-
-            $caseClauses = [];
+            $caseClauses   = [];
             $defaultClause = null;
 
             for ($i = 0; $i < $context->getChildCount(); $i++) {
                 $child = $context->getChild($i);
-                
-                if ($child instanceof \Antlr\Antlr4\Runtime\Tree\TerminalNode) {
-                    continue;
-                }
+                if ($child instanceof \Antlr\Antlr4\Runtime\Tree\TerminalNode) continue;
 
                 if (method_exists($child, 'expressionList')) {
                     $caseClauses[] = $child;
@@ -243,22 +213,23 @@ trait ControlFlowVisitor
                 }
             }
 
+            $matched       = false;
+            $shouldExecute = false;
+
             foreach ($caseClauses as $caseClause) {
                 $expressionList = $caseClause->expressionList();
-                
+
                 for ($i = 0; $i < $expressionList->getChildCount(); $i += 2) {
                     $caseValue = $this->visit($expressionList->getChild($i));
-
                     if (!$matched && $this->valuesEqual($switchValue, $caseValue)) {
-                        $matched = true;
+                        $matched       = true;
                         $shouldExecute = true;
                         break;
                     }
                 }
 
                 if ($shouldExecute) {
-                    $stmtCount = $caseClause->getChildCount();
-                    for ($i = 0; $i < $stmtCount; $i++) {
+                    for ($i = 0; $i < $caseClause->getChildCount(); $i++) {
                         $child = $caseClause->getChild($i);
                         if ($child instanceof \Antlr\Antlr4\Runtime\ParserRuleContext) {
                             $this->visit($child);
@@ -268,16 +239,16 @@ trait ControlFlowVisitor
             }
 
             if (!$matched && $defaultClause !== null) {
-                $stmtCount = $defaultClause->getChildCount();
-                for ($i = 0; $i < $stmtCount; $i++) {
+                for ($i = 0; $i < $defaultClause->getChildCount(); $i++) {
                     $child = $defaultClause->getChild($i);
                     if ($child instanceof \Antlr\Antlr4\Runtime\ParserRuleContext) {
                         $this->visit($child);
                     }
                 }
             }
+
         } catch (BreakException $e) {
-            // Break sale del switch
+            // break sale del switch
         } catch (ReturnException $e) {
             throw $e;
         } finally {
@@ -288,9 +259,10 @@ trait ControlFlowVisitor
         return null;
     }
 
-    /**
-     * Visita una sentencia break
-     */
+    // =========================================================
+    //  BREAK / CONTINUE / RETURN
+    // =========================================================
+
     public function visitBreakStatement($context)
     {
         if (!$this->isInsideScope(['for', 'switch'])) {
@@ -304,9 +276,6 @@ trait ControlFlowVisitor
         throw new BreakException();
     }
 
-    /**
-     * Visita una sentencia continue
-     */
     public function visitContinueStatement($context)
     {
         if (!$this->isInsideScope(['for'])) {
@@ -321,11 +290,10 @@ trait ControlFlowVisitor
     }
 
     /**
-     * Visita una sentencia return
+     * Visita un return. Soporta retorno vacío, simple y múltiple.
      */
     public function visitReturnStatement($context)
     {
-        // Asumiendo que las funciones crearán un scope 'function'.
         if (!$this->isInsideScope(['function'])) {
             $this->addSemanticError(
                 "La sentencia 'return' solo puede usarse dentro de una función",
@@ -343,38 +311,49 @@ trait ControlFlowVisitor
 
         $returnValues = [];
         for ($i = 0; $i < $expressionList->getChildCount(); $i += 2) {
-            $expr = $this->visit($expressionList->getChild($i));
-            $returnValues[] = $expr;
+            $returnValues[] = $this->visit($expressionList->getChild($i));
+        }
+
+        if (count($returnValues) === 0) {
+            throw new ReturnException(Value::nil());
         }
 
         if (count($returnValues) === 1) {
             throw new ReturnException($returnValues[0]);
         }
 
-        throw new ReturnException(Value::nil());
+        // Múltiples valores de retorno → Value::multi
+        throw new ReturnException(Value::multi($returnValues));
     }
 
+    // =========================================================
+    //  HELPERS PRIVADOS
+    // =========================================================
+
     /**
-     * Compara dos valores para igualdad (usado en switch)
+     * Compara dos valores para igualdad (usado en switch).
      */
     private function valuesEqual(Value $a, Value $b): bool
     {
-        if ($a->getType() !== $b->getType()) {
-            return false;
-        }
-
+        if ($a->getType() !== $b->getType()) return false;
         return $a->getValue() == $b->getValue();
     }
 
     /**
-     * Verifica si el visitor se encuentra dentro de un scope con uno de los tipos proporcionados.
+     * Verifica si el visitante está dentro de un scope del tipo indicado.
+     * Soporta coincidencia exacta Y de prefijo (p.ej. 'function' coincide
+     * con 'function:main', 'function:suma', etc.).
      */
     private function isInsideScope(array $scopeTypes): bool
     {
-        // Iterar la pila de scopes desde el más reciente al más antiguo
         for ($i = count($this->scopeStack) - 1; $i >= 0; $i--) {
-            if (in_array($this->scopeStack[$i]['name'], $scopeTypes, true)) {
-                return true;
+            $scopeName = $this->scopeStack[$i]['name'];
+            foreach ($scopeTypes as $type) {
+                if ($scopeName === $type
+                    || str_starts_with($scopeName, $type . ':')
+                ) {
+                    return true;
+                }
             }
         }
         return false;
