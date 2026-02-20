@@ -194,9 +194,9 @@ primary
     | TRUE                                                # TrueLiteral
     | FALSE                                               # FalseLiteral
     | NIL                                                 # NilLiteral
-    | ID                                                  # Identifier
     | ID ('.' ID)? '(' argumentList? ')'                  # FunctionCall
     | ID '[' expression ']'                               # ArrayAccess
+    | ID                                                  # Identifier
     | '(' expression ')'                                  # GroupedExpression
     | arrayLiteral                                        # ArrayLiteralExpr
     ;
