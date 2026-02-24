@@ -102,21 +102,39 @@ trait SymbolTableManager
 
     protected function updateSymbolValue(string $identifier, $newValue): bool
     {
+        // Si el nuevo valor no es un puntero, no sobrescribir entradas cuyo
+        // tipo ES un puntero (*T). Esto evita que una asignación via puntero
+        // (*p = val) corrompa el registro del parámetro puntero en la tabla
+        // en lugar de actualizar la variable apuntada.
+        $newIsPointer = ($newValue instanceof \Golampi\Runtime\Value)
+            && $newValue->getType() === 'pointer';
+
         for ($i = count($this->scopeStack) - 1; $i >= 0; $i--) {
             $symbols = &$this->scopeStack[$i]['symbols'];
             for ($j = 0; $j < count($symbols); $j++) {
-                if ($symbols[$j]['identifier'] === $identifier) {
-                    $symbols[$j]['value'] = $newValue;
-                    return true;
+                if ($symbols[$j]['identifier'] !== $identifier) {
+                    continue;
                 }
+                // Saltar parámetros/variables puntero cuando el valor nuevo no es puntero
+                $symIsPointer = str_starts_with($symbols[$j]['type'], '*');
+                if ($symIsPointer && !$newIsPointer) {
+                    continue;
+                }
+                $symbols[$j]['value'] = $newValue;
+                return true;
             }
         }
 
         for ($i = 0; $i < count($this->symbolTable); $i++) {
-            if ($this->symbolTable[$i]['identifier'] === $identifier) {
-                $this->symbolTable[$i]['value'] = $newValue;
-                return true;
+            if ($this->symbolTable[$i]['identifier'] !== $identifier) {
+                continue;
             }
+            $symIsPointer = str_starts_with($this->symbolTable[$i]['type'], '*');
+            if ($symIsPointer && !$newIsPointer) {
+                continue;
+            }
+            $this->symbolTable[$i]['value'] = $newValue;
+            return true;
         }
 
         return false;
