@@ -6,7 +6,7 @@ use Golampi\Runtime\Value;
 
 /**
  * Trait para visitar declaraciones del AST.
- * Actualizado para soportar arreglos simples y multidimensionales.
+ * Actualizado para soportar arreglos, punteros y tipos primitivos.
  */
 trait DeclarationVisitor
 {
@@ -14,27 +14,23 @@ trait DeclarationVisitor
     //  VAR CON INICIALIZACIÓN
     // =========================================================
 
-    /**
-     * var x int32 = 10
-     * var a [5]int32 = [5]int32{1,2,3,4,5}
-     * var m [2][3]int32 = [2][3]int32{{1,2,3},{4,5,6}}
-     */
     public function visitVarDeclWithInit($context)
     {
         $idList         = $context->idList();
         $typeCtx        = $context->type();
         $expressionList = $context->expressionList();
 
-        $isArray = $this->isArrayTypeCtx($typeCtx);
-        $type    = $isArray ? 'array' : $this->extractType($typeCtx);
+        $isArray   = $this->isArrayTypeCtx($typeCtx);
+        $isPointer = $this->isPointerTypeCtx($typeCtx);
+        $type      = $isArray   ? 'array'
+                   : ($isPointer ? 'pointer'
+                   : $this->extractType($typeCtx));
 
-        // Extraer identificadores
         $ids = [];
         for ($i = 0; $i < $idList->getChildCount(); $i += 2) {
             $ids[] = $idList->getChild($i)->getText();
         }
 
-        // Evaluar expresiones del lado derecho
         $expressions = [];
         for ($i = 0; $i < $expressionList->getChildCount(); $i += 2) {
             $expressions[] = $this->visit($expressionList->getChild($i));
@@ -64,13 +60,22 @@ trait DeclarationVisitor
 
             // Verificar compatibilidad de tipo
             if (!$value->isNil()) {
-                if ($isArray && $value->getType() !== 'array') {
+                if ($isPointer) {
+                    // Para punteros: el valor asignado debe ser un puntero
+                    if ($value->getType() !== 'pointer') {
+                        $this->addSemanticError(
+                            "Incompatibilidad de tipos: se esperaba un puntero (*T) pero se obtuvo '{$value->getType()}'",
+                            $context->getStart()->getLine(),
+                            $context->getStart()->getCharPositionInLine()
+                        );
+                    }
+                } elseif ($isArray && $value->getType() !== 'array') {
                     $this->addSemanticError(
                         "Incompatibilidad de tipos: se esperaba un arreglo pero se obtuvo '{$value->getType()}'",
                         $context->getStart()->getLine(),
                         $context->getStart()->getCharPositionInLine()
                     );
-                } elseif (!$isArray && $value->getType() !== $type) {
+                } elseif (!$isArray && !$isPointer && $value->getType() !== $type) {
                     $this->addSemanticError(
                         "Incompatibilidad de tipos: se esperaba '$type' pero se obtuvo '{$value->getType()}'",
                         $context->getStart()->getLine(),
@@ -98,18 +103,16 @@ trait DeclarationVisitor
     //  VAR SIN INICIALIZACIÓN
     // =========================================================
 
-    /**
-     * var x int32
-     * var a [5]int32
-     * var m [2][3]int32
-     */
     public function visitVarDeclSimple($context)
     {
         $idList  = $context->idList();
         $typeCtx = $context->type();
 
-        $isArray = $this->isArrayTypeCtx($typeCtx);
-        $type    = $isArray ? 'array' : $this->extractType($typeCtx);
+        $isArray   = $this->isArrayTypeCtx($typeCtx);
+        $isPointer = $this->isPointerTypeCtx($typeCtx);
+        $type      = $isArray   ? 'array'
+                   : ($isPointer ? 'pointer'
+                   : $this->extractType($typeCtx));
 
         $ids = [];
         for ($i = 0; $i < $idList->getChildCount(); $i += 2) {
@@ -126,10 +129,10 @@ trait DeclarationVisitor
                 continue;
             }
 
-            // Crear valor por defecto (arreglo inicializado o primitivo)
-            $defaultValue = $isArray
-                ? $this->createArrayFromTypeCtx($typeCtx)
-                : $this->getDefaultValue($type);
+            // Punteros sin inicialización → nil (equivalente a null en Go)
+            $defaultValue = $isArray   ? $this->createArrayFromTypeCtx($typeCtx)
+                          : ($isPointer ? Value::nil()
+                          : $this->getDefaultValue($type));
 
             $this->environment->define($id, $defaultValue);
 
@@ -174,7 +177,6 @@ trait DeclarationVisitor
             );
         }
 
-        // Las constantes se almacenan como valores inmutables
         $this->environment->define($id, $value);
 
         $this->addSymbol(
@@ -215,8 +217,8 @@ trait DeclarationVisitor
     // =========================================================
 
     /**
-     * Extrae el tipo base como string ('int32', 'float32', etc.).
-     * Para arreglos devuelve 'array'.
+     * Extrae el tipo base como string.
+     * Para arreglos devuelve 'array', para punteros devuelve 'pointer'.
      */
     protected function extractType($typeCtx): string
     {
@@ -226,6 +228,10 @@ trait DeclarationVisitor
 
         if ($this->isArrayTypeCtx($typeCtx)) {
             return 'array';
+        }
+
+        if ($this->isPointerTypeCtx($typeCtx)) {
+            return 'pointer';
         }
 
         $text = $typeCtx->getText();
@@ -241,8 +247,19 @@ trait DeclarationVisitor
     }
 
     /**
+     * Detecta si un contexto de tipo es un puntero (*T).
+     */
+    protected function isPointerTypeCtx($typeCtx): bool
+    {
+        if ($typeCtx === null) {
+            return false;
+        }
+        return str_starts_with(trim($typeCtx->getText()), '*');
+    }
+
+    /**
      * Construye la etiqueta legible del tipo para la tabla de símbolos.
-     * Ejemplos: 'int32', '[5]int32', '[2][3]int32'
+     * Ejemplos: 'int32', '[5]int32', '[2][3]int32', '*int32'
      */
     protected function buildTypeLabel($typeCtx): string
     {

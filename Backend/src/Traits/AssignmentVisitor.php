@@ -6,6 +6,9 @@ use Golampi\Runtime\Value;
 
 /**
  * Trait para manejar asignaciones en el AST.
+ *
+ * FASE 5: visitPointerAssignment mejorado para soportar
+ *         punteros a primitivos pasados como parámetros.
  */
 trait AssignmentVisitor
 {
@@ -33,6 +36,7 @@ trait AssignmentVisitor
             return null;
         }
 
+        // Si es un arreglo asignado completo (a = sortBubble(a))
         $newValue = match ($assignOp) {
             '='  => $exprValue,
             '+=' => $this->performAddition($currentValue, $exprValue, $line, $column),
@@ -51,10 +55,16 @@ trait AssignmentVisitor
 
         // Verificar compatibilidad de tipos solo en asignación simple '='
         if ($assignOp === '=' && !$newValue->isNil()) {
-            if ($currentValue->getType() !== $newValue->getType()) {
+            $currentType = $currentValue->getType();
+            $newType     = $newValue->getType();
+
+            // Permitir asignar un arreglo a variable arreglo
+            if ($currentType !== $newType
+                && !($currentType === 'array' && $newType === 'array')
+            ) {
                 $this->addSemanticError(
-                    "Incompatibilidad de tipos: no se puede asignar '{$newValue->getType()}'"
-                    . " a variable de tipo '{$currentValue->getType()}'",
+                    "Incompatibilidad de tipos: no se puede asignar '$newType'"
+                    . " a variable de tipo '$currentType'",
                     $line, $column
                 );
                 return null;
@@ -70,21 +80,37 @@ trait AssignmentVisitor
     // =========================================================
     //  ASIGNACIÓN A PUNTERO (*ptr = expr, *ptr += expr, …)
     // =========================================================
+
+    /**
+     * Maneja: *ID assignOp expression
+     *
+     * FASE 5: Funciona para punteros a primitivos y a arreglos.
+     * El puntero puede venir de:
+     *   a) var p *int32 = &x  → p es Value::pointer en el scope local
+     *   b) func f(p *int32)   → p es Value::pointer pasado como argumento
+     */
     public function visitPointerAssignment($context)
     {
-        $ptrName   = $context->ID()->getText();
-        $assignOp  = $context->assignOp()->getText();
-        $newValue  = $this->visit($context->expression());
+        $ptrName  = $context->ID()->getText();
+        $assignOp = $context->assignOp()->getText();
+        $newValue = $this->visit($context->expression());
 
         $line   = $context->getStart()->getLine();
         $column = $context->getStart()->getCharPositionInLine();
 
-        // Obtener el puntero
+        // Obtener el valor del puntero
         $ptrValue = $this->environment->get($ptrName);
 
-        if ($ptrValue === null || $ptrValue->getType() !== 'pointer') {
+        if ($ptrValue === null) {
             $this->addSemanticError(
-                "'$ptrName' no es un puntero válido",
+                "Variable '$ptrName' no declarada", $line, $column
+            );
+            return null;
+        }
+
+        if ($ptrValue->getType() !== 'pointer') {
+            $this->addSemanticError(
+                "'$ptrName' no es un puntero (tipo: '{$ptrValue->getType()}')",
                 $line, $column
             );
             return null;
@@ -94,8 +120,16 @@ trait AssignmentVisitor
         $varName = $data['varName'];
         $env     = $data['env'];
 
-        // Leer valor actual del apuntado
+        // Leer valor actual de la variable apuntada
         $current = $env->get($varName);
+
+        if ($current === null) {
+            $this->addSemanticError(
+                "El puntero '$ptrName' apunta a una variable no válida",
+                $line, $column
+            );
+            return null;
+        }
 
         $finalValue = match ($assignOp) {
             '='  => $newValue,
@@ -106,14 +140,20 @@ trait AssignmentVisitor
             default => null,
         };
 
-        if ($finalValue === null) return null;
+        if ($finalValue === null) {
+            $this->addSemanticError(
+                "Operador de asignación desconocido: '$assignOp'", $line, $column
+            );
+            return null;
+        }
 
-        // Escribir en el entorno original
+        // Escribir en el entorno original a través del puntero
         $env->set($varName, $finalValue);
         $this->updateSymbolValue($varName, $finalValue);
 
         return null;
-    }    
+    }
+
     // =========================================================
     //  DECLARACIÓN CORTA (x := expr  o  x, y := f())
     // =========================================================
@@ -126,29 +166,25 @@ trait AssignmentVisitor
         $line   = $context->getStart()->getLine();
         $column = $context->getStart()->getCharPositionInLine();
 
-        // Extraer identificadores
         $ids = [];
         for ($i = 0; $i < $idList->getChildCount(); $i += 2) {
             $ids[] = $idList->getChild($i)->getText();
         }
 
-        // Evaluar expresiones
         $expressions = [];
         for ($i = 0; $i < $expressionList->getChildCount(); $i += 2) {
             $expressions[] = $this->visit($expressionList->getChild($i));
         }
 
-        // ── Desempacar retorno múltiple ───────────────────────────────
-        // Caso: a, b := funcion()  donde funcion() retorna Value::multi(...)
+        // Desempacar retorno múltiple
         if (count($ids) > 1
             && count($expressions) === 1
             && $expressions[0] instanceof Value
             && $expressions[0]->getType() === 'multi'
         ) {
-            $expressions = $expressions[0]->getValue(); // array de Values
+            $expressions = $expressions[0]->getValue();
         }
 
-        // Verificar coincidencia de cantidades
         if (count($ids) !== count($expressions)) {
             $this->addSemanticError(
                 "Número de variables (" . count($ids) . ") no coincide"
@@ -158,7 +194,6 @@ trait AssignmentVisitor
             return null;
         }
 
-        // Solo válida dentro de funciones
         $scopeName = $this->getCurrentScopeName();
         if ($scopeName === 'global') {
             $this->addSemanticError(
@@ -168,7 +203,6 @@ trait AssignmentVisitor
             return null;
         }
 
-        // Al menos una variable debe ser nueva en el entorno actual
         $atLeastOneNew = false;
         foreach ($ids as $id) {
             if (!$this->environment->exists($id)) {
@@ -185,7 +219,6 @@ trait AssignmentVisitor
             return null;
         }
 
-        // Procesar cada variable
         for ($i = 0; $i < count($ids); $i++) {
             $varName = $ids[$i];
             $value   = $expressions[$i];
@@ -201,7 +234,6 @@ trait AssignmentVisitor
             $inferredType = $value->getType();
 
             if ($this->environment->exists($varName)) {
-                // Variable ya existe en scope padre → reasignar con verificación de tipo
                 $currentValue = $this->environment->get($varName);
 
                 if ($currentValue->getType() !== $inferredType) {
@@ -217,12 +249,8 @@ trait AssignmentVisitor
                 $this->updateSymbolValue($varName, $value);
 
             } else {
-                // Variable nueva → declarar
                 $this->environment->define($varName, $value);
 
-                // addSymbol retorna false si ya existe en la tabla del scope
-                // (puede ocurrir en iteraciones de for con ambiente hijo nuevo).
-                // En ese caso actualizar el valor sin duplicar.
                 $added = $this->addSymbol(
                     $varName, $inferredType, $scopeName,
                     $value, $line, $column
