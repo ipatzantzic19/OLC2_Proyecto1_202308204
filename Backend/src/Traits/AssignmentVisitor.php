@@ -7,8 +7,11 @@ use Golampi\Runtime\Value;
 /**
  * Trait para manejar asignaciones en el AST.
  *
- * FASE 5: visitPointerAssignment mejorado para soportar
- *         punteros a primitivos pasados como parámetros.
+ * FASE 6: Validación de inmutabilidad de constantes en:
+ *   - visitSimpleAssignment  → bloquea `const = expr`
+ *   - visitShortVarDecl      → bloquea `const := expr` (reasignación)
+ *   - visitPointerAssignment → sin cambio (puntero no puede apuntar a const
+ *                              porque &const no es válido en Go / Golampi)
  */
 trait AssignmentVisitor
 {
@@ -20,10 +23,21 @@ trait AssignmentVisitor
     {
         $varName   = $context->ID()->getText();
         $assignOp  = $context->assignOp()->getText();
-        $exprValue = $this->visit($context->expression());
+        $line      = $context->getStart()->getLine();
+        $column    = $context->getStart()->getCharPositionInLine();
 
-        $line   = $context->getStart()->getLine();
-        $column = $context->getStart()->getCharPositionInLine();
+        // ── FASE 6: guard de inmutabilidad ──────────────────────────
+        if ($this->isConstant($varName)) {
+            $this->addSemanticError(
+                "No se puede modificar la constante '$varName'",
+                $line,
+                $column
+            );
+            return null;
+        }
+        // ────────────────────────────────────────────────────────────
+
+        $exprValue = $this->visit($context->expression());
 
         if (!$this->environment->exists($varName)) {
             $this->addSemanticError("Variable '$varName' no declarada", $line, $column);
@@ -36,7 +50,6 @@ trait AssignmentVisitor
             return null;
         }
 
-        // Si es un arreglo asignado completo (a = sortBubble(a))
         $newValue = match ($assignOp) {
             '='  => $exprValue,
             '+=' => $this->performAddition($currentValue, $exprValue, $line, $column),
@@ -58,7 +71,6 @@ trait AssignmentVisitor
             $currentType = $currentValue->getType();
             $newType     = $newValue->getType();
 
-            // Permitir asignar un arreglo a variable arreglo
             if ($currentType !== $newType
                 && !($currentType === 'array' && $newType === 'array')
             ) {
@@ -81,14 +93,6 @@ trait AssignmentVisitor
     //  ASIGNACIÓN A PUNTERO (*ptr = expr, *ptr += expr, …)
     // =========================================================
 
-    /**
-     * Maneja: *ID assignOp expression
-     *
-     * FASE 5: Funciona para punteros a primitivos y a arreglos.
-     * El puntero puede venir de:
-     *   a) var p *int32 = &x  → p es Value::pointer en el scope local
-     *   b) func f(p *int32)   → p es Value::pointer pasado como argumento
-     */
     public function visitPointerAssignment($context)
     {
         $ptrName  = $context->ID()->getText();
@@ -98,7 +102,6 @@ trait AssignmentVisitor
         $line   = $context->getStart()->getLine();
         $column = $context->getStart()->getCharPositionInLine();
 
-        // Obtener el valor del puntero
         $ptrValue = $this->environment->get($ptrName);
 
         if ($ptrValue === null) {
@@ -120,7 +123,6 @@ trait AssignmentVisitor
         $varName = $data['varName'];
         $env     = $data['env'];
 
-        // Leer valor actual de la variable apuntada
         $current = $env->get($varName);
 
         if ($current === null) {
@@ -147,7 +149,6 @@ trait AssignmentVisitor
             return null;
         }
 
-        // Escribir en el entorno original a través del puntero
         $env->set($varName, $finalValue);
         $this->updateSymbolValue($varName, $finalValue);
 
@@ -202,6 +203,18 @@ trait AssignmentVisitor
             );
             return null;
         }
+
+        // ── FASE 6: ninguna id puede ser una constante ───────────────
+        foreach ($ids as $id) {
+            if ($this->isConstant($id)) {
+                $this->addSemanticError(
+                    "No se puede reasignar la constante '$id' mediante ':='",
+                    $line, $column
+                );
+                return null;
+            }
+        }
+        // ────────────────────────────────────────────────────────────
 
         $atLeastOneNew = false;
         foreach ($ids as $id) {

@@ -190,7 +190,19 @@ trait SymbolTableManager
     public function getSymbolTable(): array
     {
         $table = $this->symbolTable;
-        usort($table, fn($a, $b) => $a['order'] <=> $b['order']);
+        usort($table, function ($a, $b) {
+            $lineCmp = $a['line'] <=> $b['line'];
+            if ($lineCmp !== 0) {
+                return $lineCmp;
+            }
+
+            $colCmp = $a['column'] <=> $b['column'];
+            if ($colCmp !== 0) {
+                return $colCmp;
+            }
+
+            return $a['order'] <=> $b['order'];
+        });
         return array_map(function ($symbol) {
             unset($symbol['order']);
             return $symbol;
@@ -203,5 +215,22 @@ trait SymbolTableManager
         $this->scopeStack       = [];
         $this->currentScope     = 0;
         $this->declarationOrder = 0;
+    }
+
+    protected function isConstant(string $identifier): bool
+    {
+        for ($i = count($this->scopeStack) - 1; $i >= 0; $i--) {
+            foreach ($this->scopeStack[$i]['symbols'] as $symbol) {
+                if ($symbol['identifier'] === $identifier) {
+                    return str_contains($symbol['type'], '(const)');
+                }
+            }
+        }
+        foreach ($this->symbolTable as $symbol) {
+            if ($symbol['identifier'] === $identifier) {
+                return str_contains($symbol['type'], '(const)');
+            }
+        }
+        return false;
     }
 }
