@@ -6,6 +6,7 @@ use Golampi\Runtime\Value;
 use Golampi\Runtime\Environment;
 use Golampi\Traits\ErrorHandler;
 use Golampi\Traits\SymbolTableManager;
+use Golampi\Traits\BuiltinFunctionsVisitor;
 
 /**
  * Clase base del visitor Golampi.
@@ -18,92 +19,19 @@ abstract class BaseVisitor extends \GolampiBaseVisitor
 {
     use ErrorHandler;
     use SymbolTableManager;
+    use BuiltinFunctionsVisitor; 
 
     protected Environment $environment;
     protected array       $output    = [];
     protected array       $functions = [];
 
+    // =========================================================
+    //  FUNCIONES EMBEBIDAS
+    // =========================================================
     public function __construct()
     {
         $this->environment = new Environment();
         $this->initBuiltinFunctions();
-    }
-
-    // =========================================================
-    //  FUNCIONES EMBEBIDAS
-    // =========================================================
-
-    private function initBuiltinFunctions(): void
-    {
-        // ── fmt.Println ───────────────────────────────────────────
-        $this->functions['fmt.Println'] = function (...$args) {
-            $parts = [];
-            foreach ($args as $arg) {
-                if ($arg instanceof Value) {
-                    $parts[] = $this->valueToOutputString($arg);
-                } else {
-                    $parts[] = (string) $arg;
-                }
-            }
-            $this->output[] = implode(' ', $parts);
-            return Value::nil();
-        };
-
-        // Registrar 'fmt' como namespace especial
-        $this->environment->define('fmt', Value::string('namespace'));
-
-        // ── len ──────────────────────────────────────────────────
-        // Soporta strings Y arreglos (cualquier dimensión)
-        $this->functions['len'] = function ($arg) {
-            if (!$arg instanceof Value) {
-                return Value::nil();
-            }
-
-            if ($arg->getType() === 'string') {
-                return Value::int32(strlen($arg->getValue()));
-            }
-
-            if ($arg->getType() === 'array') {
-                // Retorna el tamaño de la primera dimensión
-                return Value::int32($arg->getValue()['size']);
-            }
-
-            return Value::nil();
-        };
-
-        // ── now ──────────────────────────────────────────────────
-        $this->functions['now'] = function () {
-            return Value::string(date('Y-m-d H:i:s'));
-        };
-
-        // ── substr ───────────────────────────────────────────────
-        $this->functions['substr'] = function ($str, $start, $length) {
-            if (!$str instanceof Value || $str->getType() !== 'string') {
-                return Value::nil();
-            }
-
-            $s = $start  instanceof Value ? $start->getValue()  : (int) $start;
-            $l = $length instanceof Value ? $length->getValue() : (int) $length;
-
-            if ($s < 0 || $l < 0 || $s + $l > strlen($str->getValue())) {
-                return Value::nil();
-            }
-
-            return Value::string(substr($str->getValue(), $s, $l));
-        };
-
-        // ── typeOf ───────────────────────────────────────────────
-        $this->functions['typeOf'] = function ($arg) {
-            if (!$arg instanceof Value) {
-                return Value::string('unknown');
-            }
-
-            if ($arg->getType() === 'array') {
-                return Value::string('array');
-            }
-
-            return Value::string($arg->getType());
-        };
     }
 
     // =========================================================
