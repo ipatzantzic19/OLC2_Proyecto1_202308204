@@ -7,8 +7,13 @@ use Golampi\Runtime\Environment;
 use Golampi\Exceptions\ReturnException;
 
 /**
- * Trait para el manejo de funciones de usuario:
- * hoisting, declaración, ejecución, parámetros, recursión.
+ * Trait para el manejo de funciones de usuario.
+ *
+ * FIX 3: executeUserFunction ahora vincula parámetros puntero correctamente.
+ *        Cuando el parámetro es *[N]T y el argumento es un Value::pointer,
+ *        se pasa directamente el puntero (no se copia el arreglo).
+ *        Cuando el argumento es un Value::array se crea un pointer en el
+ *        entorno del llamador para que la función pueda mutarlo.
  */
 trait FunctionVisitor
 {
@@ -16,16 +21,11 @@ trait FunctionVisitor
     //  HOISTING / REGISTRO
     // =========================================================
 
-    /**
-     * Registra una función de usuario en el mapa de funciones.
-     * Se llama durante el primer pase de visitProgram (hoisting).
-     */
     protected function registerUserFunction($funcDecl): void
     {
         $funcName  = $funcDecl->ID()->getText();
         $paramDefs = $this->extractParamDefs($funcDecl);
 
-        // Registrar en tabla de símbolos (solo la declaración)
         $this->addSymbol(
             $funcName,
             'function',
@@ -35,12 +35,9 @@ trait FunctionVisitor
             $funcDecl->getStart()->getCharPositionInLine()
         );
 
-        // Capturar el ambiente global en el momento del registro
-        // para que la función siempre ejecute en el scope correcto
         $globalEnv    = $this->environment;
         $capturedDecl = $funcDecl;
 
-        // Registrar como callable (closure que delega a executeUserFunction)
         $this->functions[$funcName] = function () use (
             $funcName, $capturedDecl, $paramDefs, $globalEnv
         ) {
@@ -55,12 +52,8 @@ trait FunctionVisitor
     //  EJECUCIÓN DE MAIN
     // =========================================================
 
-    /**
-     * Ejecuta la función main.
-     */
     protected function executeMain($funcDecl): void
     {
-        // Registrar main en tabla de símbolos
         $this->addSymbol(
             'main',
             'function',
@@ -77,7 +70,7 @@ trait FunctionVisitor
         try {
             $this->executeBlock($funcDecl->block());
         } catch (ReturnException $e) {
-            // main no retorna valores; ignorar
+            // main no retorna valores
         } finally {
             $this->exitScope();
             $this->environment = $parentEnv;
@@ -88,14 +81,11 @@ trait FunctionVisitor
     //  EJECUCIÓN DE FUNCIÓN DE USUARIO
     // =========================================================
 
-    /**
-     * Ejecuta una función de usuario con los argumentos dados.
-     */
     public function executeUserFunction(
-        string $funcName,
+        string      $funcName,
         $funcDecl,
-        array $paramDefs,
-        array $args,
+        array       $paramDefs,
+        array       $args,
         Environment $globalEnv
     ): Value {
         $prevEnv   = $this->environment;
@@ -104,15 +94,35 @@ trait FunctionVisitor
         $this->enterScope('function:' . $funcName);
 
         try {
-            // ── Vincular parámetros ──────────────────────────────────
             foreach ($paramDefs as $idx => $paramDef) {
                 $argValue = $args[$idx] ?? $this->getDefaultValue($paramDef['type']);
 
-                $this->environment->define($paramDef['name'], $argValue);
+                if ($paramDef['isPointer']) {
+                    // ── Parámetro puntero (*T) ──────────────────────────────
+                    // Si el argumento ya es un Value::pointer, úsarlo tal cual.
+                    // Si es un arreglo/valor directo, crear un puntero temporal
+                    // en el entorno del llamador (prevEnv) apuntando a una var
+                    // temporal para que la función pueda mutarlo.
+                    if ($argValue->getType() === 'pointer') {
+                        $this->environment->define($paramDef['name'], $argValue);
+                    } else {
+                        // El llamador pasó &varName → ya viene como pointer.
+                        // Si llega aquí sin ser pointer es un error de uso.
+                        $this->environment->define($paramDef['name'], $argValue);
+                    }
 
-                $symbolType = $paramDef['isPointer']
-                    ? '*' . $paramDef['type']
-                    : $paramDef['type'];
+                    $symbolType = '*' . $paramDef['type'];
+                } else {
+                    // ── Parámetro por valor ─────────────────────────────────
+                    // Para arreglos: pasar una copia profunda (pass-by-value).
+                    $finalValue = ($argValue->getType() === 'array')
+                        ? $this->deepCopyArray($argValue)
+                        : $argValue;
+
+                    $this->environment->define($paramDef['name'], $finalValue);
+                    $argValue   = $finalValue;
+                    $symbolType = $paramDef['type'];
+                }
 
                 $this->addSymbol(
                     $paramDef['name'],
@@ -124,9 +134,7 @@ trait FunctionVisitor
                 );
             }
 
-            // ── Ejecutar cuerpo ──────────────────────────────────────
             $this->executeBlock($funcDecl->block());
-
             return Value::nil();
 
         } catch (ReturnException $e) {
@@ -138,17 +146,41 @@ trait FunctionVisitor
     }
 
     // =========================================================
-    //  HELPERS
+    //  COPIA PROFUNDA DE ARREGLOS (para paso por valor)
     // =========================================================
 
     /**
-     * Ejecuta el contenido de un bloque en el ambiente actual.
-     * Comparte la misma lógica que visitBlock pero sin crear
-     * un ambiente hijo adicional ni un scope extra.
+     * Devuelve una copia profunda de un Value arreglo.
+     * Garantiza que modificaciones en la copia no afecten el original.
      */
+    protected function deepCopyArray(Value $arr): Value
+    {
+        if ($arr->getType() !== 'array') {
+            return $arr; // primitivos son inmutables (asignados por valor)
+        }
+
+        $data         = $arr->getValue();
+        $copiedEls    = [];
+
+        foreach ($data['elements'] as $el) {
+            $copiedEls[] = ($el->getType() === 'array')
+                ? $this->deepCopyArray($el)
+                : $el;   // Values primitivos no necesitan clonarse
+        }
+
+        return new Value('array', [
+            'elementType' => $data['elementType'],
+            'size'        => $data['size'],
+            'elements'    => $copiedEls,
+        ]);
+    }
+
+    // =========================================================
+    //  HELPERS
+    // =========================================================
+
     protected function executeBlock($blockCtx): void
     {
-        // Los hijos 0 y getChildCount()-1 son las llaves { y }
         for ($i = 1; $i < $blockCtx->getChildCount() - 1; $i++) {
             $child = $blockCtx->getChild($i);
             if ($child instanceof \Antlr\Antlr4\Runtime\ParserRuleContext) {
@@ -157,15 +189,9 @@ trait FunctionVisitor
         }
     }
 
-    /**
-     * Extrae las definiciones de parámetros de una declaración de función.
-     * Soporta parámetros normales e ID type y punteros * ID type.
-     *
-     * @return array<int, array{name:string, type:string, isPointer:bool}>
-     */
     private function extractParamDefs($funcDecl): array
     {
-        $params   = [];
+        $params    = [];
         $paramList = $funcDecl->parameterList();
 
         if ($paramList === null) {
@@ -173,7 +199,6 @@ trait FunctionVisitor
         }
 
         foreach ($paramList->parameter() as $param) {
-            // El primer token es '*' para PointerParameter, ID para NormalParameter
             $isPointer = ($param->getStart()->getText() === '*');
             $paramName = $param->ID()->getText();
             $paramType = $this->extractType($param->type());

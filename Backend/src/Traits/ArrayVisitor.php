@@ -7,13 +7,11 @@ use Golampi\Runtime\Value;
 /**
  * Trait para manejar arreglos en el intérprete Golampi.
  *
- * Cubre:
- *  - Creación de arreglos desde contexto de tipo   (createArrayFromTypeCtx)
- *  - Creación con valores iniciales                (visitArrayLiteralExpr / visitArrayLiteral)
- *  - Literales internos sin tipo                   (visitInnerArrayLiteral)
- *  - Acceso a elementos (1..N dimensiones)         (visitArrayAccess)
- *  - Asignación a elementos (1..N dimensiones)     (visitArrayAssignment)
- *  - Longitud de arreglo                           (integrada en len())
+ * FIXES aplicados en esta versión:
+ *  - FIX 1 (gramática): trailing comma en innerLiteralList → en Golampi.g4
+ *  - FIX 2 (visitor):   innerLiteralList con coma final ya no rompe el visitor
+ *  - FIX 3 (visitor):   visitArrayAccess y visitArrayAssignment auto-desreferencian
+ *                        punteros a arreglos (*[N]T)
  */
 trait ArrayVisitor
 {
@@ -21,10 +19,6 @@ trait ArrayVisitor
     //  DETECCIÓN DE TIPO ARREGLO
     // =========================================================
 
-    /**
-     * Devuelve true si el contexto de tipo corresponde a un arreglo.
-     * Detecta la forma '[' expression ']' type.
-     */
     protected function isArrayTypeCtx($typeCtx): bool
     {
         if ($typeCtx === null) {
@@ -38,14 +32,12 @@ trait ArrayVisitor
     // =========================================================
 
     /**
-     * Crea un Value de tipo 'array' con sus valores por defecto
-     * a partir de un contexto de tipo arreglo (ArrayType en la gramática).
-     *
-     * Soporta cualquier nivel de multidimensionalidad.
+     * Crea un Value 'array' con valores por defecto a partir de un
+     * contexto de tipo arreglo ([N]type).  Soporta cualquier nivel
+     * de multidimensionalidad.
      */
     protected function createArrayFromTypeCtx($typeCtx): Value
     {
-        // Evaluar la expresión del tamaño
         $sizeValue = $this->visit($typeCtx->expression());
         $size      = (int) $sizeValue->getValue();
 
@@ -62,7 +54,6 @@ trait ArrayVisitor
         $isNestedArray = $this->isArrayTypeCtx($innerTypeCtx);
         $elementType   = $isNestedArray ? 'array' : $this->extractType($innerTypeCtx);
 
-        // Crear elementos con valor por defecto
         $elements = [];
         for ($i = 0; $i < $size; $i++) {
             $elements[] = $isNestedArray
@@ -78,12 +69,7 @@ trait ArrayVisitor
     }
 
     /**
-     * Crea un arreglo a partir de dimensiones explícitas y tipo base.
-     * Útil cuando ya se evaluaron las dimensiones (p.ej. desde arrayLiteral).
-     *
-     * @param int[]       $dims      Lista de dimensiones [d0, d1, …]
-     * @param string      $baseType  Tipo primitivo de los elementos hoja
-     * @param Value[]|null $initVals Valores iniciales para el primer nivel (opcional)
+     * Crea un arreglo desde dimensiones explícitas + tipo base.
      */
     protected function createArrayFromDims(array $dims, string $baseType, ?array $initVals = null): Value
     {
@@ -96,7 +82,6 @@ trait ArrayVisitor
         for ($i = 0; $i < $size; $i++) {
             if ($initVals !== null && isset($initVals[$i])) {
                 $el = $initVals[$i];
-                // Si el valor ya es un arreglo, úsalo directamente
                 if ($el->getType() === 'array') {
                     $elements[] = $el;
                     continue;
@@ -123,26 +108,19 @@ trait ArrayVisitor
     //  LITERALES DE ARREGLO
     // =========================================================
 
-    /**
-     * Visita un literal de arreglo como expresión primaria.
-     * Delega a visitArrayLiteralNode.
-     */
     public function visitArrayLiteralExpr($context)
     {
         return $this->visitArrayLiteralNode($context->arrayLiteral());
     }
 
     /**
-     * Procesa un nodo arrayLiteral:
-     *   '[' expression ']' type '{' (expressionList | innerLiteralList)? '}'
+     * Procesa:  '[' expression ']' type '{' (innerLiteralList | expressionList)? ','? '}'
      *
-     * Ejemplos:
-     *   [3]int32{1, 2, 3}
-     *   [2][2]int32{{1,2},{3,4}}
+     * FIX 2: el visitor itera correctamente los hijos de innerLiteralList
+     *        ignorando las comas y las llaves separadoras.
      */
     public function visitArrayLiteralNode($context)
     {
-        // Tamaño de la primera dimensión
         $sizeValue = $this->visit($context->expression());
         $size      = (int) $sizeValue->getValue();
 
@@ -152,14 +130,14 @@ trait ArrayVisitor
 
         $elements = [];
 
-        // ── Inicialización con lista de literales internos {{…},{…}} ──
+        // ── Inicialización con literales internos {{…},{…},...} ───────
         if ($context->innerLiteralList() !== null) {
             $innerList = $context->innerLiteralList()->innerLiteral();
             foreach ($innerList as $inner) {
                 $elements[] = $this->buildInnerArray($inner->expressionList(), $typeCtx);
             }
         }
-        // ── Inicialización plana {e1, e2, …} ──
+        // ── Inicialización plana {e1, e2, …} ─────────────────────────
         elseif ($context->expressionList() !== null) {
             $exprList = $context->expressionList();
             for ($i = 0; $i < $exprList->getChildCount(); $i += 2) {
@@ -167,7 +145,7 @@ trait ArrayVisitor
             }
         }
 
-        // Completar con valores por defecto
+        // Completar con valores por defecto hasta $size
         while (count($elements) < $size) {
             $elements[] = $isNestedArray
                 ? $this->createArrayFromTypeCtx($typeCtx)
@@ -182,8 +160,7 @@ trait ArrayVisitor
     }
 
     /**
-     * Construye un arreglo interno a partir de su lista de expresiones
-     * y el tipo esperado del elemento.
+     * Construye un sub-arreglo interno para matrices multidimensionales.
      */
     private function buildInnerArray($expressionListCtx, $expectedTypeCtx): Value
     {
@@ -205,46 +182,15 @@ trait ArrayVisitor
         ]);
     }
 
-    /**
-     * Visita un literal de arreglo interno sin tipo:
-     *   '{' expressionList '}'
-     *
-     * Se usa dentro de arreglos multidimensionales cuando el tipo
-     * se infiere del contexto.
-     */
-    public function visitInnerArrayLiteral($context)
-    {
-        $elements    = [];
-        $elementType = 'nil';
-
-        if ($context->expressionList() !== null) {
-            $exprList = $context->expressionList();
-            for ($i = 0; $i < $exprList->getChildCount(); $i += 2) {
-                $val      = $this->visit($exprList->getChild($i));
-                $elements[] = $val;
-            }
-
-            if (count($elements) > 0) {
-                $elementType = $elements[0]->getType();
-            }
-        }
-
-        return new Value('array', [
-            'elementType' => $elementType,
-            'size'        => count($elements),
-            'elements'    => $elements,
-        ]);
-    }
-
     // =========================================================
     //  ACCESO A ELEMENTOS (LECTURA)
     // =========================================================
 
     /**
-     * Visita el acceso a uno o varios índices de arreglo:
-     *   ID '[' expr ']'
-     *   ID '[' expr ']' '[' expr ']'
-     *   …
+     * Visita:  ID '[' expr ']' ('[' expr ']')*
+     *
+     * FIX 3: si la variable es un puntero a arreglo (*[N]T),
+     *        se desreferencia automáticamente antes de indexar.
      */
     public function visitArrayAccess($context)
     {
@@ -259,6 +205,19 @@ trait ArrayVisitor
             return Value::nil();
         }
 
+        // FIX 3 ── auto-desreferenciar puntero a arreglo ───────────────
+        if ($arr->getType() === 'pointer') {
+            $data = $arr->getValue();
+            $arr  = $data['env']->get($data['varName']);
+
+            if ($arr === null) {
+                $this->addSemanticError(
+                    "Puntero '$varName' apunta a una variable no válida", $line, $col
+                );
+                return Value::nil();
+            }
+        }
+
         if ($arr->getType() !== 'array') {
             $this->addSemanticError(
                 "La variable '$varName' no es un arreglo (tipo: '{$arr->getType()}')",
@@ -267,7 +226,7 @@ trait ArrayVisitor
             return Value::nil();
         }
 
-        // Evaluar todos los índices en orden
+        // Evaluar todos los índices
         $indices = [];
         foreach ($context->expression() as $exprCtx) {
             $idxVal = $this->visit($exprCtx);
@@ -290,11 +249,11 @@ trait ArrayVisitor
     // =========================================================
 
     /**
-     * Visita la asignación a un elemento de arreglo:
-     *   ID '[' idx ']' (('[' idx ']')*) assignOp expression
+     * Visita:  ID ('[' expr ']')+ assignOp expression
      *
-     * Todas las expressiones son devueltas por context->expression().
-     * Las N-1 primeras son índices; la última es el valor.
+     * FIX 3: si la variable es un puntero a arreglo (*[N]T),
+     *        se desreferencia automáticamente antes de escribir.
+     *        La escritura modifica el arreglo original a través del puntero.
      */
     public function visitArrayAssignment($context)
     {
@@ -303,13 +262,33 @@ trait ArrayVisitor
         $line     = $context->getStart()->getLine();
         $col      = $context->getStart()->getCharPositionInLine();
 
-        // Obtener el arreglo del entorno
-        $arr = $this->environment->get($varName);
+        $varValue = $this->environment->get($varName);
 
-        if ($arr === null) {
+        if ($varValue === null) {
             $this->addSemanticError("Variable '$varName' no declarada", $line, $col);
             return null;
         }
+
+        // FIX 3 ── resolver puntero a arreglo ──────────────────────────
+        $isPointer      = ($varValue->getType() === 'pointer');
+        $targetVarName  = $varName;
+        $targetEnv      = $this->environment;
+
+        if ($isPointer) {
+            $ptrData       = $varValue->getValue();
+            $targetVarName = $ptrData['varName'];
+            $targetEnv     = $ptrData['env'];
+            $varValue      = $targetEnv->get($targetVarName);
+
+            if ($varValue === null) {
+                $this->addSemanticError(
+                    "Puntero '$varName' apunta a una variable no válida", $line, $col
+                );
+                return null;
+            }
+        }
+
+        $arr = $varValue;
 
         if ($arr->getType() !== 'array') {
             $this->addSemanticError(
@@ -319,13 +298,11 @@ trait ArrayVisitor
             return null;
         }
 
-        // Separar índices del valor
-        $allExprs  = $context->expression();
-        $totalExpr = count($allExprs);
-
-        // El último es el valor; los anteriores son índices
-        $indexExprs = array_slice($allExprs, 0, $totalExpr - 1);
-        $valueExpr  = $allExprs[$totalExpr - 1];
+        // Separar índices del valor (última expresión = valor)
+        $allExprs   = $context->expression();
+        $totalExprs = count($allExprs);
+        $indexExprs = array_slice($allExprs, 0, $totalExprs - 1);
+        $valueExpr  = $allExprs[$totalExprs - 1];
 
         // Evaluar índices
         $indices = [];
@@ -345,12 +322,11 @@ trait ArrayVisitor
         // Evaluar nuevo valor
         $newValue = $this->visit($valueExpr);
 
-        // Para asignaciones compuestas, leer el valor actual
+        // Para asignaciones compuestas, leer el valor actual primero
         if ($assignOp !== '=') {
             $currentEl = $this->getArrayElement($arr, $indices, $varName, $line, $col);
-            if ($currentEl === null) {
-                return null;
-            }
+            if ($currentEl === null) return null;
+
             $newValue = match ($assignOp) {
                 '+=' => $this->performAddition($currentEl, $newValue, $line, $col),
                 '-=' => $this->performSubtraction($currentEl, $newValue, $line, $col),
@@ -364,8 +340,13 @@ trait ArrayVisitor
         $success = $this->setArrayElement($arr, $indices, $newValue, $varName, $line, $col);
 
         if ($success) {
-            // Actualizar el valor en la tabla de símbolos para el reporte
-            $this->updateSymbolValue($varName, $arr);
+            // Si era puntero, actualizar en el entorno original
+            if ($isPointer) {
+                $targetEnv->set($targetVarName, $arr);
+                $this->updateSymbolValue($targetVarName, $arr);
+            } else {
+                $this->updateSymbolValue($varName, $arr);
+            }
         }
 
         return null;
@@ -375,10 +356,6 @@ trait ArrayVisitor
     //  HELPERS DE LECTURA / ESCRITURA
     // =========================================================
 
-    /**
-     * Recupera el elemento en las posiciones indicadas por $indices.
-     * Genera error semántico y devuelve nil si el índice está fuera de rango.
-     */
     protected function getArrayElement(
         Value  $arr,
         array  $indices,
@@ -388,7 +365,7 @@ trait ArrayVisitor
     ): Value {
         $current = $arr;
 
-        foreach ($indices as $depth => $idx) {
+        foreach ($indices as $idx) {
             if ($current->getType() !== 'array') {
                 $this->addSemanticError(
                     "Acceso de índice en un valor que no es arreglo (variable '$varName')",
@@ -414,11 +391,6 @@ trait ArrayVisitor
         return $current;
     }
 
-    /**
-     * Establece el elemento en la posición indicada por $indices.
-     * Muta el Value en su lugar (PHP pasa objetos por referencia de handle).
-     * Devuelve true si tuvo éxito.
-     */
     protected function setArrayElement(
         Value  $arr,
         array  $indices,
@@ -428,7 +400,6 @@ trait ArrayVisitor
         int    $col     = 0
     ): bool {
         if (count($indices) === 1) {
-            // Caso base: asignar directamente
             $data = $arr->getValue();
             $idx  = $indices[0];
 
@@ -477,7 +448,6 @@ trait ArrayVisitor
         );
 
         if ($success) {
-            // Actualizar la referencia en el nivel actual
             $data['elements'][$idx] = $subArr;
             $arr->setValue($data);
         }
@@ -489,26 +459,19 @@ trait ArrayVisitor
     //  FORMATO PARA SALIDA / TABLA DE SÍMBOLOS
     // =========================================================
 
-    /**
-     * Convierte un Value de tipo 'array' en su representación de texto,
-     * útil para fmt.Println y para el reporte de tabla de símbolos.
-     */
     public function arrayToString(Value $arr, bool $compact = false): string
     {
         if ($arr->getType() !== 'array') {
             return $arr->toString();
         }
 
-        $data     = $arr->getValue();
-        $elements = $data['elements'];
-        $parts    = [];
+        $data  = $arr->getValue();
+        $parts = [];
 
-        foreach ($elements as $el) {
-            if ($el->getType() === 'array') {
-                $parts[] = $this->arrayToString($el, $compact);
-            } else {
-                $parts[] = $el->toString();
-            }
+        foreach ($data['elements'] as $el) {
+            $parts[] = ($el->getType() === 'array')
+                ? $this->arrayToString($el, $compact)
+                : $el->toString();
         }
 
         return $compact

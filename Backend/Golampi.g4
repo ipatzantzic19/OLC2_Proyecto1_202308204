@@ -209,11 +209,11 @@ arrayLiteral
     ;
 
 innerLiteralList
-    : innerLiteral (',' innerLiteral)*
+    : innerLiteral (',' innerLiteral)* ','? 
     ;
 
 innerLiteral
-    : '{' expressionList '}'
+    : '{' expressionList ','? '}'
     ;
 
 argumentList
