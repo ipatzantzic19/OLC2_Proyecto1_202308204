@@ -8,8 +8,8 @@ use Golampi\Traits\ErrorHandler;
 use Golampi\Traits\SymbolTableManager;
 
 /**
- * Clase base que será extendida por el visitor generado por ANTLR
- * Implementa funcionalidad común y funciones embebidas
+ * Clase base del visitor Golampi.
+ * Inicializa funciones embebidas y provee utilidades comunes.
  */
 require_once __DIR__ . '/../../generated/GolampiVisitor.php';
 require_once __DIR__ . '/../../generated/GolampiBaseVisitor.php';
@@ -20,8 +20,8 @@ abstract class BaseVisitor extends \GolampiBaseVisitor
     use SymbolTableManager;
 
     protected Environment $environment;
-    protected array $output = [];
-    protected array $functions = [];
+    protected array       $output    = [];
+    protected array       $functions = [];
 
     public function __construct()
     {
@@ -29,109 +29,145 @@ abstract class BaseVisitor extends \GolampiBaseVisitor
         $this->initBuiltinFunctions();
     }
 
-    /**
-     * Inicializa las funciones embebidas del lenguaje
-     */
+    // =========================================================
+    //  FUNCIONES EMBEBIDAS
+    // =========================================================
+
     private function initBuiltinFunctions(): void
     {
-        // fmt.Println
-        $this->functions['fmt.Println'] = function(...$args) {
-            $output = [];
+        // ── fmt.Println ───────────────────────────────────────────
+        $this->functions['fmt.Println'] = function (...$args) {
+            $parts = [];
             foreach ($args as $arg) {
                 if ($arg instanceof Value) {
-                    $output[] = $arg->toString();
+                    $parts[] = $this->valueToOutputString($arg);
                 } else {
-                    $output[] = (string)$arg;
+                    $parts[] = (string) $arg;
                 }
             }
-            $result = implode(' ', $output);
-            $this->output[] = $result;
+            $this->output[] = implode(' ', $parts);
             return Value::nil();
         };
 
-        // Registrar el espacio de nombres `fmt` como una variable especial
+        // Registrar 'fmt' como namespace especial
         $this->environment->define('fmt', Value::string('namespace'));
 
-        // len
-        $this->functions['len'] = function($arg) {
-            if ($arg instanceof Value) {
-                if ($arg->getType() === 'string') {
-                    return Value::int32(strlen($arg->getValue()));
-                }
+        // ── len ──────────────────────────────────────────────────
+        // Soporta strings Y arreglos (cualquier dimensión)
+        $this->functions['len'] = function ($arg) {
+            if (!$arg instanceof Value) {
+                return Value::nil();
             }
+
+            if ($arg->getType() === 'string') {
+                return Value::int32(strlen($arg->getValue()));
+            }
+
+            if ($arg->getType() === 'array') {
+                // Retorna el tamaño de la primera dimensión
+                return Value::int32($arg->getValue()['size']);
+            }
+
             return Value::nil();
         };
 
-        // now
-        $this->functions['now'] = function() {
+        // ── now ──────────────────────────────────────────────────
+        $this->functions['now'] = function () {
             return Value::string(date('Y-m-d H:i:s'));
         };
 
-        // substr
-        $this->functions['substr'] = function($str, $start, $length) {
-            if ($str instanceof Value && $str->getType() === 'string') {
-                $startVal = $start instanceof Value ? $start->getValue() : $start;
-                $lengthVal = $length instanceof Value ? $length->getValue() : $length;
-                $result = substr($str->getValue(), $startVal, $lengthVal);
-                return Value::string($result);
+        // ── substr ───────────────────────────────────────────────
+        $this->functions['substr'] = function ($str, $start, $length) {
+            if (!$str instanceof Value || $str->getType() !== 'string') {
+                return Value::nil();
             }
-            return Value::nil();
+
+            $s = $start  instanceof Value ? $start->getValue()  : (int) $start;
+            $l = $length instanceof Value ? $length->getValue() : (int) $length;
+
+            if ($s < 0 || $l < 0 || $s + $l > strlen($str->getValue())) {
+                return Value::nil();
+            }
+
+            return Value::string(substr($str->getValue(), $s, $l));
         };
 
-        // typeOf
-        $this->functions['typeOf'] = function($arg) {
-            if ($arg instanceof Value) {
-                return Value::string($arg->getType());
+        // ── typeOf ───────────────────────────────────────────────
+        $this->functions['typeOf'] = function ($arg) {
+            if (!$arg instanceof Value) {
+                return Value::string('unknown');
             }
-            return Value::string('unknown');
+
+            if ($arg->getType() === 'array') {
+                return Value::string('array');
+            }
+
+            return Value::string($arg->getType());
         };
     }
 
-    /**
-     * Obtiene la salida del programa
-     */
-    public function getOutput(): array
-    {
-        return $this->output;
-    }
+    // =========================================================
+    //  CONVERSIÓN A STRING PARA SALIDA
+    // =========================================================
 
     /**
-     * Limpia la salida
+     * Convierte cualquier Value en su representación de cadena para la consola.
+     * Maneja arreglos de forma recursiva.
      */
-    public function clearOutput(): void
+    protected function valueToOutputString(Value $val): string
     {
-        $this->output = [];
+        if ($val->getType() === 'array') {
+            // Delegar al trait ArrayVisitor si está disponible
+            if (method_exists($this, 'arrayToString')) {
+                return $this->arrayToString($val, false);
+            }
+            // Fallback simple
+            $data  = $val->getValue();
+            $parts = [];
+            foreach ($data['elements'] as $el) {
+                $parts[] = $this->valueToOutputString($el);
+            }
+            return '[' . implode(' ', $parts) . ']';
+        }
+
+        return $val->toString();
     }
 
-    /**
-     * Obtiene la salida como string
-     */
-    public function getOutputString(): string
-    {
-        return implode("\n", $this->output);
-    }
+    // =========================================================
+    //  GESTIÓN DE FUNCIONES
+    // =========================================================
 
-    /**
-     * Registra una función definida por el usuario
-     */
     protected function defineFunction(string $name, callable $func): void
     {
         $this->functions[$name] = $func;
     }
 
-    /**
-     * Obtiene una función (builtin o definida por usuario)
-     */
     protected function getFunction(string $name): ?callable
     {
         return $this->functions[$name] ?? null;
     }
 
-    /**
-     * Verifica si una función existe
-     */
     protected function functionExists(string $name): bool
     {
         return isset($this->functions[$name]);
+    }
+
+    // =========================================================
+    //  SALIDA
+    // =========================================================
+
+    public function getOutput(): array
+    {
+        return $this->output;
+    }
+
+    public function clearOutput(): void
+    {
+        $this->output = [];
+    }
+
+    public function getOutputString(): string
+    {
+        return implode("\n", $this->output);
     }
 }

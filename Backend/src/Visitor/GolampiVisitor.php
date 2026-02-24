@@ -13,6 +13,8 @@ use Golampi\Traits\AssignmentVisitor;
 use Golampi\Traits\ControlFlowVisitor;
 use Golampi\Traits\IncrementDecrementVisitor;
 use Golampi\Traits\FunctionVisitor;
+use Golampi\Traits\ArrayVisitor;
+
 /**
  * Visitor principal del intérprete de Golampi
  */
@@ -27,6 +29,7 @@ class GolampiVisitor extends BaseVisitor
     use ControlFlowVisitor;
     use IncrementDecrementVisitor;
     use FunctionVisitor;
+    use ArrayVisitor;   
 
     public function __construct()
     {

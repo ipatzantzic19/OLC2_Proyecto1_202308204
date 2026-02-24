@@ -73,7 +73,7 @@ statement
 // ==================== ASIGNACIONES ====================
 assignment
     : ID assignOp expression                              # SimpleAssignment
-    | ID '[' expression ']' assignOp expression           # ArrayAssignment
+    | ID ('[' expression ']')+ assignOp expression        # ArrayAssignment
     | '*' ID assignOp expression                          # PointerAssignment
     ;
 
@@ -196,14 +196,24 @@ primary
     | FALSE                                               # FalseLiteral
     | NIL                                                 # NilLiteral
     | ID ('.' ID)? '(' argumentList? ')'                  # FunctionCall
-    | ID '[' expression ']'                               # ArrayAccess
+    | ID ('[' expression ']')+                            # ArrayAccess
     | ID                                                  # Identifier
     | '(' expression ')'                                  # GroupedExpression
     | arrayLiteral                                        # ArrayLiteralExpr
+    | '{' expressionList '}'                              # InnerArrayLiteral
     ;
 
+// ==================== LITERALES DE ARREGLO ====================
 arrayLiteral
-    : '[' expression ']' type '{' expressionList? '}'
+    : '[' expression ']' type '{' (expressionList | innerLiteralList)? '}'
+    ;
+
+innerLiteralList
+    : innerLiteral (',' innerLiteral)*
+    ;
+
+innerLiteral
+    : '{' expressionList '}'
     ;
 
 argumentList
