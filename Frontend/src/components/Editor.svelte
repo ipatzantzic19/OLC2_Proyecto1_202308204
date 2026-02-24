@@ -1,5 +1,8 @@
 <script lang="ts">
+  import "monaco-editor/min/vs/editor/editor.main.css";
   import { onMount } from "svelte";
+  import { get } from "svelte/store";
+  import * as monaco from "monaco-editor";
   import {
     editorCode,
     consoleOutput,
@@ -20,16 +23,192 @@
 
   let activeTab = "console";
   let fileName = "main.golampi";
-  let lineNumbers = [];
   let executionTime = "0ms";
   let isModalOpen = false;
   let modalContent: "errors" | "symbols" | null = null;
+  let monacoContainer: HTMLDivElement;
+  let monacoEditor: monaco.editor.IStandaloneCodeEditor | null = null;
+  let unsubscribeEditorCode: (() => void) | null = null;
+  let completionProviderDisposable: monaco.IDisposable | null = null;
 
-  $: updateLineNumbers($editorCode);
+  function registerGolampiCompletionProvider(): monaco.IDisposable {
+    return monaco.languages.registerCompletionItemProvider("go", {
+      triggerCharacters: [".", "(", " "],
+      provideCompletionItems: (model, position) => {
+        const word = model.getWordUntilPosition(position);
+        const range = {
+          startLineNumber: position.lineNumber,
+          endLineNumber: position.lineNumber,
+          startColumn: word.startColumn,
+          endColumn: word.endColumn,
+        };
 
-  function updateLineNumbers(code) {
-    const lines = code.split("\n").length;
-    lineNumbers = Array.from({ length: lines }, (_, i) => i + 1);
+        const keywordSuggestions: monaco.languages.CompletionItem[] = [
+          "package",
+          "func",
+          "var",
+          "const",
+          "if",
+          "else",
+          "for",
+          "switch",
+          "case",
+          "default",
+          "break",
+          "continue",
+          "return",
+          "true",
+          "false",
+          "nil",
+          "int32",
+          "float32",
+          "bool",
+          "string",
+          "rune",
+        ].map((label) => ({
+          label,
+          kind: monaco.languages.CompletionItemKind.Keyword,
+          insertText: label,
+          range,
+        }));
+
+        const builtinSuggestions: monaco.languages.CompletionItem[] = [
+          {
+            label: "fmt.Println",
+            kind: monaco.languages.CompletionItemKind.Function,
+            insertText: "fmt.Println(${1:valor})",
+            insertTextRules:
+              monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            range,
+          },
+          {
+            label: "len",
+            kind: monaco.languages.CompletionItemKind.Function,
+            insertText: "len(${1:valor})",
+            insertTextRules:
+              monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            range,
+          },
+          {
+            label: "typeOf",
+            kind: monaco.languages.CompletionItemKind.Function,
+            insertText: "typeOf(${1:valor})",
+            insertTextRules:
+              monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            range,
+          },
+          {
+            label: "substr",
+            kind: monaco.languages.CompletionItemKind.Function,
+            insertText: "substr(${1:texto}, ${2:inicio}, ${3:largo})",
+            insertTextRules:
+              monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            range,
+          },
+          {
+            label: "now",
+            kind: monaco.languages.CompletionItemKind.Function,
+            insertText: "now()",
+            range,
+          },
+        ];
+
+        const snippetSuggestions: monaco.languages.CompletionItem[] = [
+          {
+            label: "main template",
+            kind: monaco.languages.CompletionItemKind.Snippet,
+            insertText: "package main\n\nfunc main() {\n\t$0\n}",
+            insertTextRules:
+              monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            range,
+          },
+          {
+            label: "if block",
+            kind: monaco.languages.CompletionItemKind.Snippet,
+            insertText: "if ${1:condicion} {\n\t$0\n}",
+            insertTextRules:
+              monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            range,
+          },
+          {
+            label: "for block",
+            kind: monaco.languages.CompletionItemKind.Snippet,
+            insertText: "for ${1:i := 0}; ${2:i < n}; ${3:i++} {\n\t$0\n}",
+            insertTextRules:
+              monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            range,
+          },
+          {
+            label: "switch block",
+            kind: monaco.languages.CompletionItemKind.Snippet,
+            insertText:
+              "switch ${1:valor} {\ncase ${2:caso}:\n\t$0\ndefault:\n\t\n}",
+            insertTextRules:
+              monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            range,
+          },
+        ];
+
+        return {
+          suggestions: [
+            ...keywordSuggestions,
+            ...builtinSuggestions,
+            ...snippetSuggestions,
+          ],
+        };
+      },
+    });
+  }
+
+  onMount(() => {
+    completionProviderDisposable = registerGolampiCompletionProvider();
+
+    monacoEditor = monaco.editor.create(monacoContainer, {
+      value: get(editorCode),
+      language: "go",
+      theme: "vs-dark",
+      automaticLayout: true,
+      minimap: { enabled: false },
+      fontSize: 13,
+      lineHeight: 21,
+      tabSize: 4,
+      insertSpaces: true,
+      scrollBeyondLastLine: false,
+      wordWrap: "off",
+      readOnly: get(isExecuting),
+    });
+
+    monacoEditor.onDidChangeModelContent(() => {
+      if (!monacoEditor) return;
+      const value = monacoEditor.getValue();
+      if (value !== get(editorCode)) {
+        editorCode.set(value);
+      }
+    });
+
+    unsubscribeEditorCode = editorCode.subscribe((value) => {
+      if (!monacoEditor) return;
+      const current = monacoEditor.getValue();
+      if (value !== current) {
+        monacoEditor.setValue(value);
+      }
+    });
+
+    return () => {
+      if (completionProviderDisposable) {
+        completionProviderDisposable.dispose();
+      }
+      if (unsubscribeEditorCode) {
+        unsubscribeEditorCode();
+      }
+      if (monacoEditor) {
+        monacoEditor.dispose();
+      }
+    };
+  });
+
+  $: if (monacoEditor) {
+    monacoEditor.updateOptions({ readOnly: $isExecuting });
   }
 
   async function runCode() {
@@ -41,53 +220,66 @@
       { type: "success", message: "Initiated interpreter" },
     ]);
 
-    const result = await executeCode($editorCode);
+    try {
+      const result = await executeCode($editorCode);
 
-    if (result.success) {
-      // Agregar output a consola
-      result.output.forEach((line) => {
+      if (result.success) {
+        // Agregar output a consola
+        result.output.forEach((line) => {
+          consoleOutput.update((items) => [
+            ...items,
+            { type: "output", message: line },
+          ]);
+        });
+
         consoleOutput.update((items) => [
           ...items,
-          { type: "output", message: line },
+          {
+            type: "success",
+            message: `Execution completed successfully (${result.executionTime}).`,
+          },
         ]);
-      });
 
+        executionTime = result.executionTime;
+      } else {
+        // Mostrar errores detallados si vienen del backend
+        if (result.errors && result.errors.length > 0) {
+          result.errors.forEach((err) => {
+            const pos =
+              err.line || err.column
+                ? ` (line ${err.line || 0}, col ${err.column || 0})`
+                : "";
+            const msg = `${err.type}: ${err.description}${pos}`;
+            consoleOutput.update((items) => [
+              ...items,
+              { type: "error", message: msg },
+            ]);
+          });
+        } else {
+          consoleOutput.update((items) => [
+            ...items,
+            { type: "error", message: result.error || "Execution failed" },
+          ]);
+        }
+      }
+
+      // Actualizar símbolos y errores
+      symbolTable.set(result.symbolTable || []);
+      errors.set(result.errors || []);
+    } catch (error) {
       consoleOutput.update((items) => [
         ...items,
         {
-          type: "success",
-          message: `Execution completed successfully (${result.executionTime}).`,
+          type: "error",
+          message:
+            error instanceof Error
+              ? `Execution failed: ${error.message}`
+              : "Execution failed due to an unexpected error",
         },
       ]);
-
-      executionTime = result.executionTime;
-    } else {
-      // Mostrar errores detallados si vienen del backend
-      if (result.errors && result.errors.length > 0) {
-        result.errors.forEach((err) => {
-          const pos =
-            err.line || err.column
-              ? ` (line ${err.line || 0}, col ${err.column || 0})`
-              : "";
-          const msg = `${err.type}: ${err.description}${pos}`;
-          consoleOutput.update((items) => [
-            ...items,
-            { type: "error", message: msg },
-          ]);
-        });
-      } else {
-        consoleOutput.update((items) => [
-          ...items,
-          { type: "error", message: result.error || "Execution failed" },
-        ]);
-      }
+    } finally {
+      isExecuting.set(false);
     }
-
-    // Actualizar símbolos y errores
-    symbolTable.set(result.symbolTable || []);
-    errors.set(result.errors || []);
-
-    isExecuting.set(false);
   }
 
   async function showLastErrors() {
@@ -294,18 +486,7 @@
       </div>
 
       <div class="editor-wrapper">
-        <div class="line-numbers">
-          {#each lineNumbers as num}
-            <div class="line-number">{num}</div>
-          {/each}
-        </div>
-
-        <textarea
-          bind:value={$editorCode}
-          class="code-editor"
-          spellcheck="false"
-          disabled={$isExecuting}
-        ></textarea>
+        <div class="monaco-editor-container" bind:this={monacoContainer}></div>
       </div>
     </div>
 
@@ -579,38 +760,16 @@
   .editor-wrapper {
     display: flex;
     flex: 1;
+    min-height: 0;
     overflow: hidden;
   }
 
-  .line-numbers {
-    padding: 12px 8px;
-    background: #1e1e1e;
-    border-right: 1px solid #3e3e3e;
-    color: #858585;
-    font-family: "Consolas", "Courier New", monospace;
-    font-size: 13px;
-    line-height: 1.6;
-    text-align: right;
-    user-select: none;
-    min-width: 50px;
-  }
-
-  .line-number {
-    height: 20.8px;
-  }
-
-  .code-editor {
+  .monaco-editor-container {
     flex: 1;
-    padding: 12px 16px;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
     background: #1e1e1e;
-    color: #d4d4d4;
-    font-family: "Consolas", "Courier New", monospace;
-    font-size: 13px;
-    line-height: 1.6;
-    border: none;
-    outline: none;
-    resize: none;
-    tab-size: 4;
   }
 
   .output-section {
