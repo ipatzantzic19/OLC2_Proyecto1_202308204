@@ -23,9 +23,53 @@ trait SymbolTableManager
     {
         if (!empty($this->scopeStack)) {
             $scope = array_pop($this->scopeStack);
-            // Agregar símbolos del scope cerrado a la tabla principal
+
+            // Fusionar símbolos del scope cerrado evitando duplicados.
+            // Dos entradas son el MISMO símbolo si comparten identificador,
+            // ámbito, línea y columna (misma declaración). En ese caso solo
+            // se actualiza el valor con el valor final.
+            // Si tienen distinta línea/columna son declaraciones distintas
+            // (p.ej. variables 'j' en dos ciclos for diferentes) y se añaden
+            // como entradas separadas.
             foreach ($scope['symbols'] as $symbol) {
-                $this->symbolTable[] = $symbol;
+                if (!empty($this->scopeStack)) {
+                    // Hay un scope padre → fusionar en él
+                    $parentIdx = count($this->scopeStack) - 1;
+                    $found     = false;
+                    foreach ($this->scopeStack[$parentIdx]['symbols'] as &$existing) {
+                        if ($existing['identifier'] === $symbol['identifier']
+                            && $existing['scope']      === $symbol['scope']
+                            && $existing['line']       === $symbol['line']
+                            && $existing['column']     === $symbol['column']
+                        ) {
+                            $existing['value'] = $symbol['value'];
+                            $found = true;
+                            break;
+                        }
+                    }
+                    unset($existing);
+                    if (!$found) {
+                        $this->scopeStack[$parentIdx]['symbols'][] = $symbol;
+                    }
+                } else {
+                    // Destino es la tabla global
+                    $found = false;
+                    foreach ($this->symbolTable as &$existing) {
+                        if ($existing['identifier'] === $symbol['identifier']
+                            && $existing['scope']      === $symbol['scope']
+                            && $existing['line']       === $symbol['line']
+                            && $existing['column']     === $symbol['column']
+                        ) {
+                            $existing['value'] = $symbol['value'];
+                            $found = true;
+                            break;
+                        }
+                    }
+                    unset($existing);
+                    if (!$found) {
+                        $this->symbolTable[] = $symbol;
+                    }
+                }
             }
         }
     }

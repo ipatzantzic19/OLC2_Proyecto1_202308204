@@ -99,29 +99,22 @@ trait FunctionVisitor
 
                 if ($paramDef['isPointer']) {
                     // ── Parámetro puntero (*T) ──────────────────────────────
-                    // Si el argumento ya es un Value::pointer, úsarlo tal cual.
-                    // Si es un arreglo/valor directo, crear un puntero temporal
-                    // en el entorno del llamador (prevEnv) apuntando a una var
-                    // temporal para que la función pueda mutarlo.
                     if ($argValue->getType() === 'pointer') {
                         $this->environment->define($paramDef['name'], $argValue);
                     } else {
-                        // El llamador pasó &varName → ya viene como pointer.
-                        // Si llega aquí sin ser pointer es un error de uso.
                         $this->environment->define($paramDef['name'], $argValue);
                     }
 
-                    $symbolType = '*' . $paramDef['type'];
+                    $symbolType = '*' . $paramDef['label'];
                 } else {
                     // ── Parámetro por valor ─────────────────────────────────
-                    // Para arreglos: pasar una copia profunda (pass-by-value).
                     $finalValue = ($argValue->getType() === 'array')
                         ? $this->deepCopyArray($argValue)
                         : $argValue;
 
                     $this->environment->define($paramDef['name'], $finalValue);
                     $argValue   = $finalValue;
-                    $symbolType = $paramDef['type'];
+                    $symbolType = $paramDef['label'];
                 }
 
                 $this->addSymbol(
@@ -202,10 +195,13 @@ trait FunctionVisitor
             $isPointer = ($param->getStart()->getText() === '*');
             $paramName = $param->ID()->getText();
             $paramType = $this->extractType($param->type());
+            // Etiqueta legible: '[5]int32' en lugar de 'array'
+            $paramLabel = $this->buildTypeLabel($param->type());
 
             $params[] = [
                 'name'      => $paramName,
                 'type'      => $paramType,
+                'label'     => $paramLabel,
                 'isPointer' => $isPointer,
             ];
         }
