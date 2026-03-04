@@ -4,6 +4,7 @@ namespace Golampi\Api;
 
 use Golampi\Visitor\GolampiVisitor;
 use Golampi\Runtime\Value;
+use Golampi\Traits\ErrorHandler;
 use Antlr\Antlr4\Runtime\InputStream;
 use Antlr\Antlr4\Runtime\CommonTokenStream;
 use Antlr\Antlr4\Runtime\Error\Listeners\BaseErrorListener;
@@ -16,7 +17,7 @@ require_once __DIR__ . '/../../generated/GolampiParser.php';
  */
 class CustomErrorListener extends BaseErrorListener
 {
-    private array $errors = [];
+    use ErrorHandler;
 
     public function syntaxError(
         \Antlr\Antlr4\Runtime\Recognizer $recognizer,
@@ -26,17 +27,7 @@ class CustomErrorListener extends BaseErrorListener
         string $msg,
         ?\Antlr\Antlr4\Runtime\Error\Exceptions\RecognitionException $exception
     ): void {
-        $this->errors[] = [
-            'type' => 'Sintáctico',
-            'description' => $msg,
-            'line' => $line,
-            'column' => $charPositionInLine
-        ];
-    }
-
-    public function getErrors(): array
-    {
-        return $this->errors;
+        $this->addAntlrError($recognizer, $msg, $line, $charPositionInLine);
     }
 }
 
@@ -90,24 +81,29 @@ class ExecutionHandler
             
             // Visitor
             $visitor = new GolampiVisitor();
-            
-            try {
-                $visitor->visit($tree);
-            } catch (\Exception $e) {
-                $allErrors[] = [
-                    'type' => 'Runtime',
-                    'description' => $e->getMessage(),
-                    'line' => 0,
-                    'column' => 0
-                ];
+            $output = [];
+            $symbols = [];
+
+            if (empty($allErrors)) {
+                try {
+                    $visitor->visit($tree);
+                } catch (\Throwable $e) {
+                    $allErrors[] = [
+                        'type' => 'Ejecución',
+                        'description' => $e->getMessage(),
+                        'line' => 0,
+                        'column' => 0
+                    ];
+                }
+
+                // Errores semánticos
+                $allErrors = array_merge($allErrors, $visitor->getErrors());
+
+                // Formatear resultados
+                $output = $visitor->getOutput();
+                $symbols = $this->formatSymbols($visitor->getSymbolTable());
             }
-            
-            // Errores semánticos
-            $allErrors = array_merge($allErrors, $visitor->getErrors());
-            
-            // Formatear resultados
-            $output = $visitor->getOutput();
-            $symbols = $this->formatSymbols($visitor->getSymbolTable());
+
             $errors = $this->formatErrors($allErrors);
 
             // Save last results for later retrieval
@@ -130,13 +126,13 @@ class ExecutionHandler
                 'timestamp' => date('Y-m-d H:i:s')
             ];
             
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [
                 'success' => false,
                 'output' => [],
                 'errors' => [[
                     'type' => 'Fatal',
-                    'description' => $e->getMessage(),
+                    'description' => $this->normalizeGeneralMessage($e->getMessage()),
                     'line' => 0,
                     'column' => 0
                 ]],
@@ -149,15 +145,43 @@ class ExecutionHandler
     
     private function formatErrors(array $errors): array
     {
-        return array_map(function($error, $index) {
+        return array_map(function(array $error, int $index): array {
             return [
                 'id' => $index + 1,
-                'type' => $error['type'] ?? 'Unknown',
-                'description' => $error['description'] ?? '',
+                'type' => $this->normalizeErrorType($error['type'] ?? ''),
+                'description' => $this->normalizeGeneralMessage((string)($error['description'] ?? '')),
                 'line' => $error['line'] ?? 0,
                 'column' => $error['column'] ?? 0
             ];
         }, $errors, array_keys($errors));
+    }
+
+    private function normalizeErrorType(string $type): string
+    {
+        $normalized = strtolower(trim($type));
+
+        return match ($normalized) {
+            'léxico', 'lexico' => 'Léxico',
+            'sintáctico', 'sintactico' => 'Sintáctico',
+            'semántico', 'semantico' => 'Semántico',
+            'runtime', 'ejecución', 'ejecucion' => 'Ejecución',
+            'fatal' => 'Fatal',
+            default => 'Desconocido',
+        };
+    }
+
+    private function normalizeGeneralMessage(string $message): string
+    {
+        $normalized = trim($message);
+
+        return strtr($normalized, [
+            '<EOF>' => 'fin de archivo',
+            'Unexpected' => 'Inesperado',
+            'unexpected' => 'inesperado',
+            'undefined' => 'no definido',
+            'Unknown' => 'Desconocido',
+            'unknown' => 'desconocido',
+        ]);
     }
     
     private function formatSymbols(array $symbols): array

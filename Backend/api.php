@@ -38,10 +38,10 @@ $body = json_decode($input, true) ?? [];
 try {
     $router = new ApiRouter();
     $router->handle($method, $path, $body);
-} catch (\Exception $e) {
+} catch (\Throwable $e) {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => $e->getMessage()
+        'error' => 'Error interno del servidor: ' . $e->getMessage()
     ]);
 }

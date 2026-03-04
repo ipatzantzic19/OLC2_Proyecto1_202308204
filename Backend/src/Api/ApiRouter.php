@@ -45,18 +45,18 @@ class ApiRouter
             try {
                 $response = call_user_func($this->routes[$method][$path], $body);
                 echo json_encode($response, JSON_UNESCAPED_UNICODE);
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 http_response_code(500);
                 echo json_encode([
                     'success' => false,
-                    'error' => $e->getMessage()
+                    'error' => 'Error interno del servidor: ' . $e->getMessage()
                 ]);
             }
         } else {
             http_response_code(404);
             echo json_encode([
                 'success' => false,
-                'error' => 'Endpoint not found'
+                'error' => 'Endpoint no encontrado'
             ]);
         }
     }
@@ -70,7 +70,7 @@ class ApiRouter
         if (!isset($body['code']) || empty(trim($body['code']))) {
             return [
                 'success' => false,
-                'error' => 'Code cannot be empty',
+                'error' => 'El código no puede estar vacío',
                 'output' => [],
                 'errors' => [],
                 'symbolTable' => []

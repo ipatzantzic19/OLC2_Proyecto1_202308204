@@ -26,7 +26,7 @@ class ErrorListener extends \Antlr\Antlr4\Runtime\Error\Listeners\BaseErrorListe
 
     public function syntaxError(\Antlr\Antlr4\Runtime\Recognizer $recognizer, ?object $offendingSymbol, int $line, int $charPositionInLine, string $msg, ?\Antlr\Antlr4\Runtime\Error\Exceptions\RecognitionException $exception): void
     {
-        $this->addSyntacticError($msg, $line, $charPositionInLine);
+        $this->addAntlrError($recognizer, $msg, $line, $charPositionInLine);
     }
 }
 
@@ -159,17 +159,20 @@ function executeGolampiFile(string $filePath): array
         // Crear e instanciar el visitor
         $visitor = new GolampiVisitor();
 
-        // Visitar el árbol (ejecutar el programa)
-        $visitor->visit($tree);
+        // Solo ejecutar si no hay errores léxicos/sintácticos
+        if (empty($allErrors)) {
+            $visitor->visit($tree);
 
-        // Obtener errores semánticos
-        $semanticErrors = $visitor->getErrors();
-        $allErrors = array_merge($allErrors, $semanticErrors);
+            // Obtener errores semánticos
+            $semanticErrors = $visitor->getErrors();
+            $allErrors = array_merge($allErrors, $semanticErrors);
 
-        // Obtener resultados
-        $result['output'] = $visitor->getOutputString();
+            // Obtener resultados
+            $result['output'] = $visitor->getOutputString();
+            $result['symbolTable'] = $visitor->getSymbolTable();
+        }
+
         $result['errors'] = $allErrors;
-        $result['symbolTable'] = $visitor->getSymbolTable();
         $result['success'] = empty($allErrors);
         $result['executionTime'] = microtime(true) - $startTime;
 
@@ -179,7 +182,7 @@ function executeGolampiFile(string $filePath): array
             $result['message'] = "⚠️  Ejecución completada con errores";
         }
 
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         $result['message'] = "❌ Error: " . $e->getMessage();
         $result['errors'][] = [
             'type' => 'Fatal',
