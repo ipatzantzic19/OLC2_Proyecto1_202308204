@@ -46,7 +46,7 @@ func main() {
     fmt.Println("Identificador:", Identificador, "!= identificador:", identificador)
     
     // Descomentar para probar errores léxicos/sintácticos:
-    // var 1numero int32 = 10     // ERROR: Inicia con número
+     var 1numero int32 = 10     // ERROR: Inicia con número
     // var func int32 = 20        // ERROR: Palabra reservada
     // var mi-var int32 = 30      // ERROR: Carácter especial '-'
 

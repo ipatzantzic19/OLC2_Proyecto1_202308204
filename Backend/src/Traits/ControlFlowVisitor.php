@@ -235,6 +235,8 @@ trait ControlFlowVisitor
                             $this->visit($child);
                         }
                     }
+                    $shouldExecute = false; // En Go el switch no tiene fallthrough por defecto
+                    break;
                 }
             }
 

@@ -84,25 +84,24 @@ class ExecutionHandler
             $output = [];
             $symbols = [];
 
-            if (empty($allErrors)) {
-                try {
-                    $visitor->visit($tree);
-                } catch (\Throwable $e) {
-                    $allErrors[] = [
-                        'type' => 'Ejecución',
-                        'description' => $e->getMessage(),
-                        'line' => 0,
-                        'column' => 0
-                    ];
-                }
-
-                // Errores semánticos
-                $allErrors = array_merge($allErrors, $visitor->getErrors());
-
-                // Formatear resultados
-                $output = $visitor->getOutput();
-                $symbols = $this->formatSymbols($visitor->getSymbolTable());
+            // Siempre intentar visitar el AST (puede ser parcial si hay errores sintácticos)
+            try {
+                $visitor->visit($tree);
+            } catch (\Throwable $e) {
+                $allErrors[] = [
+                    'type' => 'Ejecución',
+                    'description' => $e->getMessage(),
+                    'line' => 0,
+                    'column' => 0
+                ];
             }
+
+            // Errores semánticos
+            $allErrors = array_merge($allErrors, $visitor->getErrors());
+
+            // Formatear resultados
+            $output = $visitor->getOutput();
+            $symbols = $this->formatSymbols($visitor->getSymbolTable());
 
             $errors = $this->formatErrors($allErrors);
 
