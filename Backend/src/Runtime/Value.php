@@ -50,9 +50,9 @@ class Value
      */
     public function toString(): string
     {
-        if ($this->isNil())   return 'nil';
+        if ($this->isNil())   return '<nil>';
         if ($this->type === 'bool')    return $this->value ? 'true' : 'false';
-        if ($this->type === 'rune')    return chr($this->value);   // carácter Unicode
+        if ($this->type === 'rune')    return (string) $this->value;   // código Unicode numérico
         if ($this->type === 'string')  return $this->value;
         if ($this->type === 'array')   return $this->arrayToString();
         if ($this->type === 'pointer') return 'pointer';

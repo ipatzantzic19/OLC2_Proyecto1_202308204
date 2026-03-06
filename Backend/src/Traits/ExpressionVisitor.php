@@ -226,10 +226,11 @@ trait ExpressionVisitor
         }
 
         $left = $this->visit($context->equality(0));
+        $eIdx = 1;
 
         for ($i = 1; $i < $context->getChildCount(); $i += 2) {
             if (!$left->toBool()) return Value::bool(false); // cortocircuito
-            $right = $this->visit($context->equality((int)($i / 2)));
+            $right = $this->visit($context->equality($eIdx++));
             $left  = Value::bool($right->toBool());
         }
 
@@ -243,10 +244,11 @@ trait ExpressionVisitor
         }
 
         $left = $this->visit($context->logicalAnd(0));
+        $aIdx = 1;
 
         for ($i = 1; $i < $context->getChildCount(); $i += 2) {
             if ($left->toBool()) return Value::bool(true); // cortocircuito
-            $right = $this->visit($context->logicalAnd((int)($i / 2)));
+            $right = $this->visit($context->logicalAnd($aIdx++));
             $left  = Value::bool($right->toBool());
         }
 
