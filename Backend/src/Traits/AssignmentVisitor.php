@@ -50,12 +50,24 @@ trait AssignmentVisitor
             return null;
         }
 
+        // Si la variable es un puntero, escribir a través de él (semántica por referencia)
+        $isPointerVar  = ($currentValue->getType() === 'pointer');
+        $writeEnv      = $this->environment;
+        $writeVarName  = $varName;
+        $effectiveCurr = $currentValue;
+        if ($isPointerVar) {
+            $ptrData       = $currentValue->getValue();
+            $writeVarName  = $ptrData['varName'];
+            $writeEnv      = $ptrData['env'];
+            $effectiveCurr = $writeEnv->get($writeVarName) ?? $currentValue;
+        }
+
         $newValue = match ($assignOp) {
             '='  => $exprValue,
-            '+=' => $this->performAddition($currentValue, $exprValue, $line, $column),
-            '-=' => $this->performSubtraction($currentValue, $exprValue, $line, $column),
-            '*=' => $this->performMultiplication($currentValue, $exprValue, $line, $column),
-            '/=' => $this->performDivision($currentValue, $exprValue, $line, $column),
+            '+=' => $this->performAddition($effectiveCurr, $exprValue, $line, $column),
+            '-=' => $this->performSubtraction($effectiveCurr, $exprValue, $line, $column),
+            '*=' => $this->performMultiplication($effectiveCurr, $exprValue, $line, $column),
+            '/=' => $this->performDivision($effectiveCurr, $exprValue, $line, $column),
             default => null,
         };
 
@@ -68,7 +80,7 @@ trait AssignmentVisitor
 
         // Verificar compatibilidad de tipos solo en asignación simple '='
         if ($assignOp === '=' && !$newValue->isNil()) {
-            $currentType = $currentValue->getType();
+            $currentType = $effectiveCurr->getType();
             $newType     = $newValue->getType();
 
             if ($currentType !== $newType
@@ -83,8 +95,9 @@ trait AssignmentVisitor
             }
         }
 
-        $this->environment->set($varName, $newValue);
-        $this->updateSymbolValue($varName, $newValue);
+        // Escribir en el entorno correcto (a través del puntero si aplica)
+        $writeEnv->set($writeVarName, $newValue);
+        $this->updateSymbolValue($writeVarName, $newValue);
 
         return null;
     }

@@ -38,6 +38,18 @@ trait ArrayVisitor
      */
     protected function createArrayFromTypeCtx($typeCtx): Value
     {
+        // SliceType ([]T): sin tamaño fijo → arreglo vacío por defecto
+        if ($typeCtx->expression() === null) {
+            $innerTypeCtx = $typeCtx->type();
+            $isNested     = $this->isArrayTypeCtx($innerTypeCtx);
+            $elementType  = $isNested ? 'array' : $this->extractType($innerTypeCtx);
+            return new Value('array', [
+                'elementType' => $elementType,
+                'size'        => 0,
+                'elements'    => [],
+            ]);
+        }
+
         $sizeValue = $this->visit($typeCtx->expression());
         $size      = (int) $sizeValue->getValue();
 
@@ -110,7 +122,42 @@ trait ArrayVisitor
 
     public function visitArrayLiteralExpr($context)
     {
-        return $this->visitArrayLiteralNode($context->arrayLiteral());
+        // Despacha a visitFixedArrayLiteralNode o visitSliceLiteralNode según la alternativa
+        return $this->visit($context->arrayLiteral());
+    }
+
+    // =========================================================
+    //  TIPO SLICE ([]T) — solo marca el tipo, helpers lo leen via getText()
+    // =========================================================
+
+    public function visitSliceType($context)
+    {
+        return null;
+    }
+
+    // =========================================================
+    //  LITERAL SLICE: []T{ e1, e2, ... }
+    // =========================================================
+
+    public function visitSliceLiteralNode($context)
+    {
+        $typeCtx     = $context->type();
+        $isNested    = $this->isArrayTypeCtx($typeCtx);
+        $elementType = $isNested ? 'array' : $this->extractType($typeCtx);
+        $elements    = [];
+
+        if ($context->expressionList() !== null) {
+            $exprList = $context->expressionList();
+            for ($i = 0; $i < $exprList->getChildCount(); $i += 2) {
+                $elements[] = $this->visit($exprList->getChild($i));
+            }
+        }
+
+        return new Value('array', [
+            'elementType' => $elementType,
+            'size'        => count($elements),
+            'elements'    => $elements,
+        ]);
     }
 
     /**
@@ -119,7 +166,7 @@ trait ArrayVisitor
      * FIX 2: el visitor itera correctamente los hijos de innerLiteralList
      *        ignorando las comas y las llaves separadoras.
      */
-    public function visitArrayLiteralNode($context)
+    public function visitFixedArrayLiteralNode($context)
     {
         $sizeValue = $this->visit($context->expression());
         $size      = (int) $sizeValue->getValue();

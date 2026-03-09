@@ -50,6 +50,15 @@ trait BuiltinFunctionsVisitor
                 return Value::nil();
             }
 
+            // Auto-desreferenciar puntero a arreglo
+            if ($arg->getType() === 'pointer') {
+                $data  = $arg->getValue();
+                $deref = $data['env']->get($data['varName']);
+                if ($deref !== null) {
+                    $arg = $deref;
+                }
+            }
+
             if ($arg->getType() === 'string') {
                 // mb_strlen para soporte Unicode correcto
                 return Value::int32(mb_strlen($arg->getValue(), 'UTF-8'));

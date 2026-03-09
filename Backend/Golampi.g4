@@ -205,7 +205,8 @@ primary
 
 // ==================== LITERALES DE ARREGLO ====================
 arrayLiteral
-    : '[' expression ']' type '{' (expressionList | innerLiteralList)? '}'
+    : '[' expression ']' type '{' (expressionList | innerLiteralList)? '}'  # FixedArrayLiteralNode
+    | '[' ']' type '{' expressionList? '}'                                  # SliceLiteralNode
     ;
 
 innerLiteralList
@@ -233,6 +234,7 @@ type
     | RUNE_TYPE                                           # RuneType
     | STRING_TYPE                                         # StringType
     | '[' expression ']' type                             # ArrayType
+    | '[' ']' type                                        # SliceType
     | '*' type                                            # PointerType
     ;
 
