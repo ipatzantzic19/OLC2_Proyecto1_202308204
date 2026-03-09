@@ -74,11 +74,13 @@ trait BuiltinFunctionsVisitor
     }
 
     // ── now ────────────────────────────────────────────────────────
-    // Retorna fecha y hora actual en formato YYYY-MM-DD HH:MM:SS
+    // Retorna fecha y hora actual en formato YYYY-MM-DD HH:MM:SS (zona local Guatemala)
     private function registerNow(): void
     {
         $this->functions['now'] = function () {
-            return Value::string(date('Y-m-d H:i:s'));
+            $tz = new \DateTimeZone('America/Guatemala');
+            $dt = new \DateTime('now', $tz);
+            return Value::string($dt->format('Y-m-d H:i:s'));
         };
     }
 
@@ -107,7 +109,7 @@ trait BuiltinFunctionsVisitor
 
     // ── typeOf ─────────────────────────────────────────────────────
     // Retorna el tipo de una variable como string
-    // int32, float32, bool, string, rune, array, pointer
+    // int32→int, float32→float64, rune→int32, bool, string, [N]T, pointer
     private function registerTypeOf(): void
     {
         $this->functions['typeOf'] = function ($arg) {
@@ -115,14 +117,21 @@ trait BuiltinFunctionsVisitor
                 return Value::string('unknown');
             }
 
-            // Para arreglos podría retornar el tipo del elemento también
+            // Para arreglos: retorna [size]elementType  (ej: [3]int32)
             if ($arg->getType() === 'array') {
                 $data        = $arg->getValue();
                 $elementType = $data['elementType'] ?? 'unknown';
-                return Value::string('[]' . $elementType);
+                $size        = $data['size'] ?? 0;
+                return Value::string('[' . $size . ']' . $elementType);
             }
 
-            return Value::string($arg->getType());
+            // Mapeo de tipos internos a nombres visibles
+            $typeMap = [
+                'rune' => 'int32',
+            ];
+
+            $type = $arg->getType();
+            return Value::string($typeMap[$type] ?? $type);
         };
     }
 }
