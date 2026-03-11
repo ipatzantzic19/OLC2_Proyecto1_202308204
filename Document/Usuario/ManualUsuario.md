@@ -119,12 +119,12 @@ En el navegador entra a:
 	- Muestra confirmación para descartar cambios no guardados.
 
 - **Load**
-	- Abre selector de archivos para cargar un archivo con extensión `.golampi`.
+	- Abre selector de archivos para cargar un archivo con extensión `.go`.
 	- Al cargarlo, su contenido se coloca en el editor y actualiza el nombre de archivo.
 
 - **Save**
 	- Descarga el contenido actual del editor como archivo de texto.
-	- Usa como nombre el archivo actual (por defecto `main.golampi`, o el nombre del último archivo cargado).
+	- Usa como nombre el archivo actual (por defecto `main.go`, o el nombre del último archivo cargado).
 
 - **Run Interpreter**
 	- Envía el código al backend y ejecuta el intérprete.
@@ -301,7 +301,7 @@ func main() {
 	- Revisa si `start.sh` sigue corriendo en terminal.
 
 - **Load no muestra archivos**
-	- Asegúrate de usar extensión `.golampi`.
+	- Asegúrate de usar extensión `.go`.
 
 - **No veo símbolos/errores en modal**
 	- Ejecuta primero el código con **Run Interpreter**; los modales muestran la última ejecución.

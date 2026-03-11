@@ -22,7 +22,7 @@
   import SymbolsTable from "./SymbolsTable.svelte";
 
   let activeTab = "console";
-  let fileName = "main.golampi";
+  let fileName = "main.go";
   let executionTime = "0ms";
   let isModalOpen = false;
   let modalContent: "errors" | "symbols" | null = null;
@@ -319,7 +319,7 @@
   function loadFile() {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".golampi";
+    input.accept = ".go";
 
     input.onchange = (e) => {
       const target = e.target as HTMLInputElement;

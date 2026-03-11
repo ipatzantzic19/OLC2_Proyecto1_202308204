@@ -205,11 +205,11 @@ echo "                    INTÉRPRETE GOLAMPI - SISTEMA DE PRUEBAS\n";
 echo str_repeat("=", 100) . "\n";
 
 // Determinar el archivo a ejecutar
-$testFile = $argv[1] ?? __DIR__ . '/calificacionPrueba/embebidas.golampi';
+$testFile = $argv[1] ?? __DIR__ . '/calificacionPrueba/embebidas.go';
 
 if (!file_exists($testFile)) {
     echo "❌ Error: El archivo '$testFile' no existe\n";
-    echo "\nUso: php test.php [archivo.golampi]\n";
+    echo "\nUso: php test.php [archivo.go]\n";
     exit(1);
 }
 
