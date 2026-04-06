@@ -44,6 +44,11 @@ abstract class BaseVisitor extends \GolampiBaseVisitor
      */
     protected function valueToOutputString(Value $val): string
     {
+        // Validar que $val no sea null
+        if ($val === null) {
+            return 'nil';
+        }
+        
         if ($val->getType() === 'array') {
             // Delegar al trait ArrayVisitor si está disponible
             if (method_exists($this, 'arrayToString')) {
@@ -53,7 +58,11 @@ abstract class BaseVisitor extends \GolampiBaseVisitor
             $data  = $val->getValue();
             $parts = [];
             foreach ($data['elements'] as $el) {
-                $parts[] = $this->valueToOutputString($el);
+                if ($el === null) {
+                    $parts[] = 'nil';
+                } else {
+                    $parts[] = $this->valueToOutputString($el);
+                }
             }
             return '[' . implode(' ', $parts) . ']';
         }

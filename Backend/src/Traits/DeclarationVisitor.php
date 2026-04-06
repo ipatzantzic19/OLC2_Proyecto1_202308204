@@ -209,17 +209,6 @@ trait DeclarationVisitor
             return Value::nil();
         }
 
-        // Auto-desreferenciar punteros en contexto de expresión.
-        // visitArrayAccess / visitArrayAssignment leen el env directamente
-        // y manejan punteros con su propio FIX 3, así que esto no interfiere.
-        if ($value->getType() === 'pointer') {
-            $data  = $value->getValue();
-            $deref = $data['env']->get($data['varName']);
-            if ($deref !== null) {
-                return $deref;
-            }
-        }
-
         return $value;
     }
 

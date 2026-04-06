@@ -69,8 +69,12 @@ class Value
         $parts = [];
 
         foreach ($data['elements'] as $el) {
-            /** @var Value $el */
-            $parts[] = $el->toString();
+            /** @var Value|null $el */
+            if ($el === null) {
+                $parts[] = '<nil>';
+            } else {
+                $parts[] = $el->toString();
+            }
         }
 
         return '[' . implode(' ', $parts) . ']';

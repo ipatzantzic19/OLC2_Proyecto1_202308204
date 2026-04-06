@@ -228,11 +228,7 @@ argument
 
 // ==================== TIPOS ====================
 type
-    : INT32_TYPE                                          # Int32Type
-    | FLOAT32_TYPE                                        # Float32Type
-    | BOOL_TYPE                                           # BoolType
-    | RUNE_TYPE                                           # RuneType
-    | STRING_TYPE                                         # StringType
+    : ID                                                  # BasicType
     | '[' expression ']' type                             # ArrayType
     | '[' ']' type                                        # SliceType
     | '*' type                                            # PointerType
@@ -254,13 +250,6 @@ RETURN   : 'return';
 TRUE     : 'true';
 FALSE    : 'false';
 NIL      : 'nil';
-
-// ==================== TIPOS PRIMITIVOS ====================
-INT32_TYPE   : 'int32';
-FLOAT32_TYPE : 'float32';
-BOOL_TYPE    : 'bool';
-RUNE_TYPE    : 'rune';
-STRING_TYPE  : 'string';
 
 // ==================== OPERADORES LÓGICOS ====================
 AND : '&&';

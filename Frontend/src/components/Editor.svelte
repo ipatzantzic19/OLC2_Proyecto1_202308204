@@ -223,15 +223,40 @@
     try {
       const result = await executeCode($editorCode);
 
-      if (result.success) {
-        // Agregar output a consola
+      // SIEMPRE mostrar el output si existe, sin importar si hay errores
+      if (result.output && result.output.length > 0) {
         result.output.forEach((line) => {
           consoleOutput.update((items) => [
             ...items,
             { type: "output", message: line },
           ]);
         });
+      }
 
+      // LUEGO mostrar errores si los hay
+      if (result.errors && result.errors.length > 0) {
+        result.errors.forEach((err) => {
+          const pos =
+            err.line || err.column
+              ? ` (line ${err.line || 0}, col ${err.column || 0})`
+              : "";
+          const msg = `${err.type}: ${err.description}${pos}`;
+          consoleOutput.update((items) => [
+            ...items,
+            { type: "error", message: msg },
+          ]);
+        });
+
+        // Mensaje de resumen con errores
+        consoleOutput.update((items) => [
+          ...items,
+          {
+            type: "warning",
+            message: `Execution completed with ${result.errors.length} error(s) (${result.executionTime}).`,
+          },
+        ]);
+      } else {
+        // Mensaje de éxito sin errores
         consoleOutput.update((items) => [
           ...items,
           {
@@ -239,29 +264,9 @@
             message: `Execution completed successfully (${result.executionTime}).`,
           },
         ]);
-
-        executionTime = result.executionTime;
-      } else {
-        // Mostrar errores detallados si vienen del backend
-        if (result.errors && result.errors.length > 0) {
-          result.errors.forEach((err) => {
-            const pos =
-              err.line || err.column
-                ? ` (line ${err.line || 0}, col ${err.column || 0})`
-                : "";
-            const msg = `${err.type}: ${err.description}${pos}`;
-            consoleOutput.update((items) => [
-              ...items,
-              { type: "error", message: msg },
-            ]);
-          });
-        } else {
-          consoleOutput.update((items) => [
-            ...items,
-            { type: "error", message: result.error || "Execution failed" },
-          ]);
-        }
       }
+
+      executionTime = result.executionTime;
 
       // Actualizar símbolos y errores
       symbolTable.set(result.symbolTable || []);

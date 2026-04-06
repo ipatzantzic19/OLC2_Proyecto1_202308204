@@ -97,12 +97,26 @@ trait ControlFlowVisitor
                     }
                 }
 
+                // Crear un nuevo ambiente para cada iteración del bloque
+                $iterEnv = $this->environment;
+                $this->environment = new Environment($iterEnv);
+                $this->enterScope('for-iter');
+
                 try {
                     $this->visit($context->block());
                 } catch (BreakException $e) {
+                    $this->exitScope();
+                    $this->environment = $iterEnv;
                     break;
                 } catch (ContinueException $e) {
+                    $this->exitScope();
+                    $this->environment = $iterEnv;
                     // continúa al post-incremento
+                } finally {
+                    if ($this->environment !== $iterEnv) {
+                        $this->exitScope();
+                        $this->environment = $iterEnv;
+                    }
                 }
 
                 // 3. Post-incremento
@@ -138,12 +152,26 @@ trait ControlFlowVisitor
                     break;
                 }
 
+                // Crear un nuevo ambiente para cada iteración del bloque
+                $iterEnv = $this->environment;
+                $this->environment = new Environment($iterEnv);
+                $this->enterScope('for-iter');
+
                 try {
                     $this->visit($context->block());
                 } catch (BreakException $e) {
+                    $this->exitScope();
+                    $this->environment = $iterEnv;
                     break;
                 } catch (ContinueException $e) {
+                    $this->exitScope();
+                    $this->environment = $iterEnv;
                     continue;
+                } finally {
+                    if ($this->environment !== $iterEnv) {
+                        $this->exitScope();
+                        $this->environment = $iterEnv;
+                    }
                 }
             }
         } catch (ReturnException $e) {
@@ -168,12 +196,26 @@ trait ControlFlowVisitor
 
         try {
             while (true) {
+                // Crear un nuevo ambiente para cada iteración del bloque
+                $iterEnv = $this->environment;
+                $this->environment = new Environment($iterEnv);
+                $this->enterScope('for-iter');
+
                 try {
                     $this->visit($context->block());
                 } catch (BreakException $e) {
+                    $this->exitScope();
+                    $this->environment = $iterEnv;
                     break;
                 } catch (ContinueException $e) {
+                    $this->exitScope();
+                    $this->environment = $iterEnv;
                     continue;
+                } finally {
+                    if ($this->environment !== $iterEnv) {
+                        $this->exitScope();
+                        $this->environment = $iterEnv;
+                    }
                 }
             }
         } catch (ReturnException $e) {

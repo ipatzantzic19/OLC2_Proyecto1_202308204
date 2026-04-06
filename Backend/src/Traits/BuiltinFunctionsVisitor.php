@@ -27,7 +27,9 @@ trait BuiltinFunctionsVisitor
         $this->functions['fmt.Println'] = function (...$args) {
             $parts = [];
             foreach ($args as $arg) {
-                if ($arg instanceof Value) {
+                if ($arg === null) {
+                    $parts[] = 'nil';
+                } elseif ($arg instanceof Value) {
                     $parts[] = $this->valueToOutputString($arg);
                 } else {
                     $parts[] = (string) $arg;

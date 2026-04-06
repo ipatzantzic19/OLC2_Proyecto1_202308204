@@ -126,6 +126,37 @@ trait ArrayVisitor
         return $this->visit($context->arrayLiteral());
     }
 
+    /**
+     * Visitador para literales internos: { e1, e2, ... }
+     * Se usa cuando se parsean arreglos bidimensionales como {{1,2},{3,4}}
+     * Devuelve un Value de tipo 'array' sin tamaño fijo (como un slice)
+     */
+    public function visitInnerArrayLiteral($context)
+    {
+        $expressionList = $context->expressionList();
+        $elements = [];
+
+        if ($expressionList !== null) {
+            for ($i = 0; $i < $expressionList->getChildCount(); $i += 2) {
+                $elements[] = $this->visit($expressionList->getChild($i));
+            }
+        }
+
+        // Determinar el tipo de elemento
+        $firstElement = $elements[0] ?? null;
+        $elementType = 'nil';
+        
+        if ($firstElement !== null && $firstElement instanceof Value) {
+            $elementType = $firstElement->getType();
+        }
+
+        return new Value('array', [
+            'elementType' => $elementType,
+            'size'        => count($elements),
+            'elements'    => $elements,
+        ]);
+    }
+
     // =========================================================
     //  TIPO SLICE ([]T) — solo marca el tipo, helpers lo leen via getText()
     // =========================================================
@@ -179,16 +210,34 @@ trait ArrayVisitor
 
         // ── Inicialización con literales internos {{…},{…},...} ───────
         if ($context->innerLiteralList() !== null) {
-            $innerList = $context->innerLiteralList()->innerLiteral();
-            foreach ($innerList as $inner) {
-                $elements[] = $this->buildInnerArray($inner->expressionList(), $typeCtx);
+            $innerLiteralList = $context->innerLiteralList();
+            $innerLiterals = $innerLiteralList->innerLiteral();
+            
+            if ($innerLiterals !== null && !is_array($innerLiterals)) {
+                $innerLiterals = [$innerLiterals];
+            }
+            
+            if (is_array($innerLiterals)) {
+                foreach ($innerLiterals as $inner) {
+                    $exprList = $inner->expressionList();
+                    $builtArray = $this->buildInnerArray($exprList, $typeCtx);
+                    if ($builtArray !== null) {
+                        $elements[] = $builtArray;
+                    } else {
+                        $elements[] = $this->createArrayFromTypeCtx($typeCtx);
+                    }
+                }
             }
         }
         // ── Inicialización plana {e1, e2, …} ─────────────────────────
         elseif ($context->expressionList() !== null) {
             $exprList = $context->expressionList();
             for ($i = 0; $i < $exprList->getChildCount(); $i += 2) {
-                $elements[] = $this->visit($exprList->getChild($i));
+                $el = $this->visit($exprList->getChild($i));
+                // Si el elemento es un arreglo (por ejemplo, un {1,2}), usarlo directamente
+                if ($el !== null) {
+                    $elements[] = $el;
+                }
             }
         }
 
@@ -208,6 +257,7 @@ trait ArrayVisitor
 
     /**
      * Construye un sub-arreglo interno para matrices multidimensionales.
+     * Extrae correctamente el tipo de los elementos del arreglo padre.
      */
     private function buildInnerArray($expressionListCtx, $expectedTypeCtx): Value
     {
@@ -215,12 +265,26 @@ trait ArrayVisitor
 
         if ($expressionListCtx !== null) {
             for ($i = 0; $i < $expressionListCtx->getChildCount(); $i += 2) {
-                $elements[] = $this->visit($expressionListCtx->getChild($i));
+                $el = $this->visit($expressionListCtx->getChild($i));
+                // Validar que el elemento no sea null
+                if ($el !== null) {
+                    $elements[] = $el;
+                } else {
+                    // Si la visita devuelve null, usar nil
+                    $elements[] = Value::nil();
+                }
             }
         }
 
-        $isNested    = $this->isArrayTypeCtx($expectedTypeCtx);
-        $elementType = $isNested ? 'array' : $this->extractType($expectedTypeCtx);
+        // Extraer el tipo interior del contexto de tipo esperado
+        // Para [2]int32, queremos int32; para [2][3]int32, queremos [3]int32
+        $innerTypeCtx = null;
+        if ($this->isArrayTypeCtx($expectedTypeCtx)) {
+            $innerTypeCtx = $expectedTypeCtx->type();
+        }
+
+        $isNested    = $innerTypeCtx !== null && $this->isArrayTypeCtx($innerTypeCtx);
+        $elementType = $isNested ? 'array' : ($innerTypeCtx !== null ? $this->extractType($innerTypeCtx) : $this->extractType($expectedTypeCtx));
 
         return new Value('array', [
             'elementType' => $elementType,
@@ -263,6 +327,45 @@ trait ArrayVisitor
                 );
                 return Value::nil();
             }
+        }
+
+        // ── SOPORTE PARA INDEXACIÓN DE STRINGS ──────────────────────
+        // En Go, puedes indexar strings para obtener bytes individuales
+        if ($arr->getType() === 'string') {
+            // Solo permitir un índice
+            $indexCtxs = $context->expression();
+            if (count($indexCtxs) !== 1) {
+                $this->addSemanticError(
+                    "El acceso a string solo puede tener un índice",
+                    $line, $col
+                );
+                return Value::nil();
+            }
+
+            $idxVal = $this->visit($indexCtxs[0]);
+            if ($idxVal === null || !in_array($idxVal->getType(), ['int32', 'rune'])) {
+                $this->addSemanticError(
+                    "El índice de string debe ser de tipo int32 o rune",
+                    $indexCtxs[0]->getStart()->getLine(),
+                    $indexCtxs[0]->getStart()->getCharPositionInLine()
+                );
+                return Value::nil();
+            }
+
+            $idx = (int) $idxVal->getValue();
+            $str = $arr->getValue();
+            $strlen = strlen($str);
+
+            if ($idx < 0 || $idx >= $strlen) {
+                $this->addSemanticError(
+                    "Índice $idx fuera de rango (longitud: $strlen) en '$varName'",
+                    $line, $col
+                );
+                return Value::nil();
+            }
+
+            // Retornar el byte en esa posición como int32 (como en Go)
+            return Value::int32(ord($str[$idx]));
         }
 
         if ($arr->getType() !== 'array') {
@@ -413,6 +516,14 @@ trait ArrayVisitor
         $current = $arr;
 
         foreach ($indices as $idx) {
+            if ($current === null) {
+                $this->addSemanticError(
+                    "La variable '$varName' no está inicializada correctamente",
+                    $line, $col
+                );
+                return Value::nil();
+            }
+            
             if ($current->getType() !== 'array') {
                 $this->addSemanticError(
                     "Acceso de índice en un valor que no es arreglo (variable '$varName')",
@@ -432,7 +543,14 @@ trait ArrayVisitor
                 return Value::nil();
             }
 
-            $current = $data['elements'][$idx];
+            $current = $data['elements'][$idx] ?? null;
+            if ($current === null) {
+                $this->addSemanticError(
+                    "Acceso a elemento no inicializado en '$varName' (índice: $idx)",
+                    $line, $col
+                );
+                return Value::nil();
+            }
         }
 
         return $current;
@@ -475,7 +593,15 @@ trait ArrayVisitor
             return false;
         }
 
-        $subArr = $data['elements'][$idx];
+        $subArr = $data['elements'][$idx] ?? null;
+        
+        if ($subArr === null) {
+            $this->addSemanticError(
+                "Acceso a elemento no inicializado en '$varName' (índice: $idx)",
+                $line, $col
+            );
+            return false;
+        }
 
         if ($subArr->getType() !== 'array') {
             $this->addSemanticError(

@@ -153,7 +153,7 @@ trait StatementVisitor
     // =========================================================
 
     /**
-     * Visita una llamada a función (builtins y funciones de usuario).
+     * Visita una llamada a función (builtins, funciones de usuario y conversiones de tipo).
      */
     public function visitFunctionCall($context)
     {
@@ -187,6 +187,29 @@ trait StatementVisitor
             for ($i = 0; $i < $argList->getChildCount(); $i += 2) {
                 $argCtx  = $argList->getChild($i);
                 $args[] = $this->visit($argCtx);
+            }
+        }
+
+        // ============================================
+        // CONVERSIONES DE TIPO (type casting)
+        // ============================================
+        if (count($args) === 1) {
+            $value = $args[0];
+            switch ($funcName) {
+                case 'int32':
+                    return Value::int32((int) $value->getValue());
+                case 'float32':
+                    return Value::float32((float) $value->getValue());
+                case 'bool':
+                    return Value::bool($value->toBool());
+                case 'string':
+                    return Value::string((string) $value->toString());
+                case 'rune':
+                    $val = $value->getValue();
+                    if (is_string($val)) {
+                        return Value::rune(ord($val[0]));
+                    }
+                    return Value::rune((int) $val);
             }
         }
 
