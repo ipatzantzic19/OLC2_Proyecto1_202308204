@@ -97,7 +97,16 @@ switchStatement
     ;
 
 caseClause
-    : CASE expressionList ':' statement*
+    : CASE caseExpressionList ':' statement*
+    ;
+
+caseExpressionList
+    : caseExpression (',' caseExpression)*
+    ;
+
+caseExpression
+    : expression RANGE expression                         # RangeCaseExpr
+    | expression                                          # SingleCaseExpr
     ;
 
 defaultClause
@@ -254,6 +263,7 @@ NIL      : 'nil';
 // ==================== OPERADORES LÓGICOS ====================
 AND : '&&';
 OR  : '||';
+RANGE : '..';
 
 // ==================== LITERALES ====================
 INT32   : [0-9]+;

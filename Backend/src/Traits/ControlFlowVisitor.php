@@ -97,26 +97,12 @@ trait ControlFlowVisitor
                     }
                 }
 
-                // Crear un nuevo ambiente para cada iteración del bloque
-                $iterEnv = $this->environment;
-                $this->environment = new Environment($iterEnv);
-                $this->enterScope('for-iter');
-
                 try {
                     $this->visit($context->block());
                 } catch (BreakException $e) {
-                    $this->exitScope();
-                    $this->environment = $iterEnv;
                     break;
                 } catch (ContinueException $e) {
-                    $this->exitScope();
-                    $this->environment = $iterEnv;
                     // continúa al post-incremento
-                } finally {
-                    if ($this->environment !== $iterEnv) {
-                        $this->exitScope();
-                        $this->environment = $iterEnv;
-                    }
                 }
 
                 // 3. Post-incremento
@@ -152,26 +138,12 @@ trait ControlFlowVisitor
                     break;
                 }
 
-                // Crear un nuevo ambiente para cada iteración del bloque
-                $iterEnv = $this->environment;
-                $this->environment = new Environment($iterEnv);
-                $this->enterScope('for-iter');
-
                 try {
                     $this->visit($context->block());
                 } catch (BreakException $e) {
-                    $this->exitScope();
-                    $this->environment = $iterEnv;
                     break;
                 } catch (ContinueException $e) {
-                    $this->exitScope();
-                    $this->environment = $iterEnv;
                     continue;
-                } finally {
-                    if ($this->environment !== $iterEnv) {
-                        $this->exitScope();
-                        $this->environment = $iterEnv;
-                    }
                 }
             }
         } catch (ReturnException $e) {
@@ -196,26 +168,12 @@ trait ControlFlowVisitor
 
         try {
             while (true) {
-                // Crear un nuevo ambiente para cada iteración del bloque
-                $iterEnv = $this->environment;
-                $this->environment = new Environment($iterEnv);
-                $this->enterScope('for-iter');
-
                 try {
                     $this->visit($context->block());
                 } catch (BreakException $e) {
-                    $this->exitScope();
-                    $this->environment = $iterEnv;
                     break;
                 } catch (ContinueException $e) {
-                    $this->exitScope();
-                    $this->environment = $iterEnv;
                     continue;
-                } finally {
-                    if ($this->environment !== $iterEnv) {
-                        $this->exitScope();
-                        $this->environment = $iterEnv;
-                    }
                 }
             }
         } catch (ReturnException $e) {
@@ -241,58 +199,44 @@ trait ControlFlowVisitor
         try {
             $switchValue = $this->visit($context->expression());
 
-            $caseClauses   = [];
-            $defaultClause = null;
+            $matched = false;
 
-            for ($i = 0; $i < $context->getChildCount(); $i++) {
-                $child = $context->getChild($i);
-                if ($child instanceof \Antlr\Antlr4\Runtime\Tree\TerminalNode) continue;
+            // Recorrer cada caseClause
+            foreach ($context->caseClause() as $caseClause) {
+                if ($matched) break;
 
-                if (method_exists($child, 'expressionList')) {
-                    $caseClauses[] = $child;
-                } elseif (method_exists($child, 'statement') && !method_exists($child, 'expressionList')) {
-                    $defaultClause = $child;
-                }
-            }
+                // Evaluar la lista de expresiones/rangos del case
+                $caseMatched = $this->evaluateCaseExpressionList(
+                    $caseClause->caseExpressionList(),
+                    $switchValue
+                );
 
-            $matched       = false;
-            $shouldExecute = false;
+                if ($caseMatched) {
+                    $matched = true;
 
-            foreach ($caseClauses as $caseClause) {
-                $expressionList = $caseClause->expressionList();
-
-                for ($i = 0; $i < $expressionList->getChildCount(); $i += 2) {
-                    $caseValue = $this->visit($expressionList->getChild($i));
-                    if (!$matched && $this->valuesEqual($switchValue, $caseValue)) {
-                        $matched       = true;
-                        $shouldExecute = true;
-                        break;
-                    }
-                }
-
-                if ($shouldExecute) {
-                    for ($i = 0; $i < $caseClause->getChildCount(); $i++) {
-                        $child = $caseClause->getChild($i);
-                        if ($child instanceof \Antlr\Antlr4\Runtime\ParserRuleContext) {
-                            $this->visit($child);
+                    // Ejecutar los statements del case
+                    try {
+                        foreach ($caseClause->statement() as $stmt) {
+                            $this->visit($stmt);
                         }
-                    }
-                    $shouldExecute = false; // En Go el switch no tiene fallthrough por defecto
-                    break;
-                }
-            }
-
-            if (!$matched && $defaultClause !== null) {
-                for ($i = 0; $i < $defaultClause->getChildCount(); $i++) {
-                    $child = $defaultClause->getChild($i);
-                    if ($child instanceof \Antlr\Antlr4\Runtime\ParserRuleContext) {
-                        $this->visit($child);
+                    } catch (BreakException $e) {
+                        // break explícito dentro del case: salir del switch
                     }
                 }
             }
 
-        } catch (BreakException $e) {
-            // break sale del switch
+            // defaultClause si ningún case coincidió
+            if (!$matched && $context->defaultClause() !== null) {
+                $defaultClause = $context->defaultClause();
+                try {
+                    foreach ($defaultClause->statement() as $stmt) {
+                        $this->visit($stmt);
+                    }
+                } catch (BreakException $e) {
+                    // break explícito en default
+                }
+            }
+
         } catch (ReturnException $e) {
             throw $e;
         } finally {
@@ -301,6 +245,97 @@ trait ControlFlowVisitor
         }
 
         return null;
+    }
+
+    // =========================================================
+    //  EVALUACIÓN DE LISTA DE EXPRESIONES/RANGOS DE UN CASE
+    // =========================================================
+
+    /**
+     * Evalúa si el switchValue coincide con alguna de las expresiones
+     * o rangos de un caseExpressionList.
+     *
+     * Soporta:
+     *   case 1, 2, 3:          → SingleCaseExpr separadas por coma
+     *   case 80..89:           → RangeCaseExpr  (ambos extremos incluidos)
+     *   case 1, 10..20, 30:    → mezcla de ambos
+     */
+    private function evaluateCaseExpressionList($caseExpressionList, Value $switchValue): bool
+    {
+        if ($caseExpressionList === null) {
+            return false;
+        }
+
+        foreach ($caseExpressionList->caseExpression() as $caseExpr) {
+            if ($this->evaluateCaseExpression($caseExpr, $switchValue)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Evalúa un único caseExpression (single o range) contra switchValue.
+     */
+    private function evaluateCaseExpression($caseExpr, Value $switchValue): bool
+    {
+        // Detectar si es RangeCaseExpr o SingleCaseExpr por el número de
+        // expresiones hijas y la presencia del token '..'
+        $expressions = $caseExpr->expression();
+
+        // RangeCaseExpr: tiene exactamente 2 expresiones hijas (low .. high)
+        if (is_array($expressions) && count($expressions) === 2) {
+            return $this->evaluateRangeCase(
+                $expressions[0],
+                $expressions[1],
+                $switchValue
+            );
+        }
+
+        // SingleCaseExpr: una sola expresión
+        $exprCtx = is_array($expressions) ? $expressions[0] : $expressions;
+        $caseValue = $this->visit($exprCtx);
+        return $this->valuesEqual($switchValue, $caseValue);
+    }
+
+    /**
+     * Evalúa si switchValue está en el rango [lowExpr .. highExpr] (ambos inclusive).
+     * Solo aplica a tipos numéricos (int32, float32, rune).
+     */
+    private function evaluateRangeCase($lowExprCtx, $highExprCtx, Value $switchValue): bool
+    {
+        $numericTypes = ['int32', 'float32', 'rune'];
+
+        if (!in_array($switchValue->getType(), $numericTypes, true)) {
+            $this->addSemanticError(
+                "El rango '..' en 'case' solo es válido para tipos numéricos (int32, float32, rune), "
+                . "se encontró '{$switchValue->getType()}'",
+                $lowExprCtx->getStart()->getLine(),
+                $lowExprCtx->getStart()->getCharPositionInLine()
+            );
+            return false;
+        }
+
+        $lowValue  = $this->visit($lowExprCtx);
+        $highValue = $this->visit($highExprCtx);
+
+        if (!in_array($lowValue->getType(), $numericTypes, true)
+            || !in_array($highValue->getType(), $numericTypes, true)
+        ) {
+            $this->addSemanticError(
+                "Los límites del rango '..' en 'case' deben ser valores numéricos",
+                $lowExprCtx->getStart()->getLine(),
+                $lowExprCtx->getStart()->getCharPositionInLine()
+            );
+            return false;
+        }
+
+        $sv  = $switchValue->getValue();
+        $low = $lowValue->getValue();
+        $hi  = $highValue->getValue();
+
+        return $sv >= $low && $sv <= $hi;
     }
 
     // =========================================================
@@ -375,7 +410,7 @@ trait ControlFlowVisitor
     // =========================================================
 
     /**
-     * Compara dos valores para igualdad (usado en switch).
+     * Compara dos valores para igualdad (usado en switch single case).
      */
     private function valuesEqual(Value $a, Value $b): bool
     {
